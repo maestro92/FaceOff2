@@ -144,3 +144,114 @@ the idea is that you need to use __declspec(dllexport) to "export from a dll"
 https://docs.microsoft.com/en-us/cpp/build/exporting-from-a-dll-using-declspec-dllexport?view=vs-2019#:~:text=You%20can%20export%20data%2C%20functions,export%20decorated%20C%2B%2B%20function%20names.
 
 this keyword adds the export directive to the object file so you do not need to use a .def file.
+
+
+
+
+
+###########################################################
+###################### Name Mangling ######################
+###########################################################
+
+Just to see the difference between exported functions with c++ mangled names vs c style names 
+I wrote the following:
+
+                #pragma once
+
+                #include <iostream>
+
+                using namespace std;
+
+                extern "C" __declspec(dllexport) void UpdateAndRender()
+                {
+                    cout << "Update And Render2";
+                }
+
+
+                __declspec(dllexport) int test1(int a)
+                {
+                    return 0;
+                }
+
+                extern "C" __declspec(dllexport) int test2(int a)
+                {
+                    return 0;
+                }
+
+So apparently in the Debug Folder, there visual studio outputs a GameCode.exp file 
+which is fo type "Exports Library File".
+I downloaded a exp view on windows to view the exported names 
+
+GameCode.dll?test1@@YAHH@ZUpdateAndRendertest2
+
+as you can see the list of functio names:
+
+                test1@@YAHH@Z
+                UpdateAndRender
+                test2
+
+
+another thing you can do is to use the Visual Studio Command Prompt
+and use the DUMPBIN /Exports command to view the exported function
+
+
+
+        C:\Users\marty\OneDrive\Desktop\Projects\FaceOff2\Client\Debug>dumpbin /exports GameCode.dll
+        Microsoft (R) COFF/PE Dumper Version 14.16.27034.0
+        Copyright (C) Microsoft Corporation.  All rights reserved.
+
+
+        Dump of file GameCode.dll
+
+        File Type: DLL
+
+          Section contains the following exports for GameCode.dll
+
+            00000000 characteristics
+            FFFFFFFF time date stamp
+                0.00 version
+                   1 ordinal base
+                   3 number of functions
+                   3 number of names
+
+            ordinal hint RVA      name
+
+                  1    0 00011122 ?test1@@YAHH@Z = @ILT+285(?test1@@YAHH@Z)
+                  2    1 0001130C UpdateAndRender = @ILT+775(_UpdateAndRender)
+                  3    2 000111FE test2 = @ILT+505(_test2)
+
+          Summary
+
+                1000 .00cfg
+                1000 .data
+                1000 .idata
+                1000 .msvcjmc
+                3000 .rdata
+                1000 .reloc
+                1000 .rsrc
+                8000 .text
+               10000 .textbss
+
+
+and again, you see the mangled names. so there you go, c++ name mangling. 
+
+
+
+so another thing you need to do is to call FreeLibrary
+for some reason, not including this FreeLibrary call, GameCodeDLL doesnt reload properly
+so you need to have it
+
+                internal void Win32UnloadGameCode(win32_game_code *GameCode)
+                {
+                    if(GameCode->GameCodeDLL)
+                    {
+                        FreeLibrary(GameCode->GameCodeDLL);
+                        GameCode->GameCodeDLL = 0;
+                    }
+
+                    GameCode->IsValid = false;
+                    GameCode->UpdateAndRender = 0;
+                    GameCode->GetSoundSamples = 0;
+                }
+
+

@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FaceOff2", "FaceOff2\FaceOf
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GameCode", "GameCode\GameCode.vcxproj", "{6E9D9298-BF0A-4BCC-84FA-5F7B8E47A0F1}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PlatformShared", "PlatformShared\PlatformShared.vcxproj", "{E9EA7AC7-2672-4DC8-8242-F6E3933E5E70}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -29,6 +31,14 @@ Global
 		{6E9D9298-BF0A-4BCC-84FA-5F7B8E47A0F1}.Release|Win32.Build.0 = Release|Win32
 		{6E9D9298-BF0A-4BCC-84FA-5F7B8E47A0F1}.Release|x64.ActiveCfg = Release|x64
 		{6E9D9298-BF0A-4BCC-84FA-5F7B8E47A0F1}.Release|x64.Build.0 = Release|x64
+		{E9EA7AC7-2672-4DC8-8242-F6E3933E5E70}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E9EA7AC7-2672-4DC8-8242-F6E3933E5E70}.Debug|Win32.Build.0 = Debug|Win32
+		{E9EA7AC7-2672-4DC8-8242-F6E3933E5E70}.Debug|x64.ActiveCfg = Debug|x64
+		{E9EA7AC7-2672-4DC8-8242-F6E3933E5E70}.Debug|x64.Build.0 = Debug|x64
+		{E9EA7AC7-2672-4DC8-8242-F6E3933E5E70}.Release|Win32.ActiveCfg = Release|Win32
+		{E9EA7AC7-2672-4DC8-8242-F6E3933E5E70}.Release|Win32.Build.0 = Release|Win32
+		{E9EA7AC7-2672-4DC8-8242-F6E3933E5E70}.Release|x64.ActiveCfg = Release|x64
+		{E9EA7AC7-2672-4DC8-8242-F6E3933E5E70}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
