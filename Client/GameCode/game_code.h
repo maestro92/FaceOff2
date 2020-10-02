@@ -17,10 +17,14 @@ using namespace std;
 */
 
 
+struct CameraEntity
+{
+	glm::vec3 position;
+};
 
 struct Entity
 {
-	glm::dvec3 pos;
+	glm::vec3 pos;
 };
 
 /*
@@ -33,11 +37,6 @@ struct memory_arena
 */
 
 
-struct Camera
-{
-	glm::vec3 position;
-
-};
 
 // This is mirroring the sim_region struct in handmade_sim_region.h
 struct GameState
@@ -47,13 +46,16 @@ struct GameState
 	int entityCount;
 	int maxEntityCount;
 
-	Camera camera;
+	CameraEntity camera;
+};
+
+struct TransformData
+{
+	glm::mat4 cameraTransform;
 };
 
 
-
-
-#define PushRenderElement(gameRenderCommands, type) (type*)PushRenderElement_(gameRenderCommands, RenderEntryType_##type, sizeof(type))
+#define PushRenderElement(gameRenderCommands, type) (RenderEntry##type*)PushRenderElement_(gameRenderCommands, RenderEntryType_##type, sizeof(RenderEntry##type))
 void* PushRenderElement_(GameRenderCommands* commands, RenderEntryType type, uint32 size)
 {
 	void* result = 0;
@@ -75,21 +77,124 @@ void* PushRenderElement_(GameRenderCommands* commands, RenderEntryType type, uin
 	return result;
 }
 
-void PushCube(glm::dvec3 entityPosition, GameRenderCommands* gameRenderCommands)
+void PushQuad(GameRenderCommands* gameRenderCommands, TransformData* transformData, int texture,
+													glm::vec3 p0, glm::vec2 uv0, glm::vec4 color0,
+												    glm::vec3 p1, glm::vec2 uv1, glm::vec4 color1,
+													glm::vec3 p2, glm::vec2 uv2, glm::vec4 color2,
+													glm::vec3 p3, glm::vec2 uv3, glm::vec4 color3)
 {
-	RenderEntryCube* cube = PushRenderElement(gameRenderCommands, RenderEntryCube);
+	RenderEntryTexturedQuad* quad = PushRenderElement(gameRenderCommands, TexturedQuad);
 
+
+	// RenderEntryTexturedQuad* entry = gameRenderCommands->
+	TexturedVertex* vertexArray = &(gameRenderCommands->masterVertexArray[gameRenderCommands->numVertex]);
+	vertexArray[0].position = p0;
+	vertexArray[0].normal = p0;
+	vertexArray[0].uv = uv0;
+	vertexArray[0].color = color0;
+
+	vertexArray[1].position = p1;
+	vertexArray[1].normal = p1;
+	vertexArray[1].uv = uv1;
+	vertexArray[1].color = color1;
+
+	vertexArray[2].position = p2;
+	vertexArray[2].normal = p2;
+	vertexArray[2].uv = uv2;
+	vertexArray[2].color = color2;
+
+	vertexArray[3].position = p3;
+	vertexArray[3].normal = p3;
+	vertexArray[3].uv = uv3;
+	vertexArray[3].color = color3;
+
+	gameRenderCommands->numVertex += 4;
+}
+
+
+void PushCube(GameRenderCommands* gameRenderCommands, TransformData* transformData, glm::vec3 entityPosition, glm::vec3 dim)
+{
+	// RenderEntryCube* cube = PushRenderElement(gameRenderCommands, RenderEntryCube);
+
+	// push the 6 sides
+	glm::vec3 min = entityPosition - dim;
+	glm::vec3 max = entityPosition + dim;
+
+
+	/*
+		y
+		^		 
+	  (-x,y,-z) p4 ------------ p5 (x,y,-z) 
+		|		|\              |\
+		|		| \             | \
+		|		| (-x,y,z)      |  \
+		|		|	p0 ------------ p1 (x,y,z)
+		|	    p6 -|----------	p7	|
+	   (-x,-y,-z)\  |	(x,-y,-z)\	|
+		|		  \	|		      \ |
+		|		   \|			   \|
+		|			p2 ------------ p3 (x,-y,z)
+		|         (-x,-y,z) 
+		|			
+		------------------------------------------> x
+	    \
+		 \
+		  \
+		   V z
+	*/
+
+	// 4 points on front face 
+	glm::vec3 p0 = glm::vec3(min.x, max.y, max.z);
+	glm::vec3 p1 = glm::vec3(max.x, max.y, max.z);
+	glm::vec3 p2 = glm::vec3(min.x, min.y, max.z);
+	glm::vec3 p3 = glm::vec3(max.x, min.y, max.z);
+
+	// 4 points on back face 
+	glm::vec3 p4 = glm::vec3(min.x, max.y, min.z);
+	glm::vec3 p5 = glm::vec3(max.x, max.y, min.z);
+	glm::vec3 p6 = glm::vec3(min.x, min.y, min.z);
+	glm::vec3 p7 = glm::vec3(max.x, min.y, min.z);
+
+	glm::vec2 t0 = glm::vec2(0, 0);
+	glm::vec2 t1 = glm::vec2(1, 0);
+	glm::vec2 t2 = glm::vec2(0, 1);
+	glm::vec2 t3 = glm::vec2(1, 1);
+
+	glm::vec4 c0 = glm::vec4(1, 0, 0, 1);
+	glm::vec4 c1 = glm::vec4(0, 1, 0, 1);
+	glm::vec4 c2 = glm::vec4(0, 0, 1, 1);
+	glm::vec4 c3 = glm::vec4(1, 1, 1, 1);
+
+	PushQuad(gameRenderCommands, transformData, 0, p0, t0, c0,
+													p1, t1, c1,
+													p3, t3, c3,
+													p2, t2, c2);
 }
 
 
 void WorldTickAndRender(GameState* gameState, GameRenderCommands* gameRenderCommands)
 {
+	// process input
+
+	// update camera
+
+
+	// update camera matrix
+
+	TransformData transformData = {};
+
+	glm::mat4 cameraTransform = glm::translate(gameState->camera.position);
+	glm::mat4 cameraProj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f);
+
+	transformData.cameraTransform = cameraProj * glm::inverse(cameraTransform);
+
+	gameRenderCommands->cameraTransform = transformData.cameraTransform;
 
 	for (int i = 0; i < gameState->entityCount; i++)
 	{
 		Entity* entity = &gameState->entities[i];
 
-		PushCube(entity->pos, gameRenderCommands);
+		PushCube(gameRenderCommands, &transformData, entity->pos, glm::vec3(1,1,1));
 	}
 }
 
@@ -134,9 +239,10 @@ extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, Ga
 		gameState->maxEntityCount = 1024;
 		for (int i = 0; i < gameState->entityCount; i++)
 		{
-			gameState->entities[i].pos = glm::dvec3(i, 0, i);
+			gameState->entities[i].pos = glm::dvec3(10 - i, 10 - i, 10 - i);
 		}
 
+		gameState->camera.position = glm::dvec3(0, 2, 0);
 		gameState->isInitalized = true;
 	}
 

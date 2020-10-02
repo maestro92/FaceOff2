@@ -13,6 +13,9 @@ typedef void(*PlatformDeallocateMemory)(void* address, int size);
 #define Megabytes(value) (Kilobytes(value)*1024LL)
 #define Gigabytes(value) (Megabytes(value)*1024LL)
 
+#define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
+#define OffsetOf(type, member) (uintptr_t) &(((type*)0)->member)
+
 typedef uint8_t uint8;
 typedef uint16_t uint16;
 typedef uint32_t uint32;
@@ -77,8 +80,8 @@ struct GameMemory
 
 enum RenderEntryType
 {
-	RenderEntryType_RenderEntryClear,
-	RenderEntryType_RenderEntryCube,
+	RenderEntryType_Clear,
+	RenderEntryType_TexturedQuad,
 	RenderEntryType_CoordinateSystem,
 };
 
@@ -92,15 +95,27 @@ struct RenderEntryClear
 	glm::vec4 color;
 };
 
-struct RenderEntryCube
+struct RenderEntryTexturedQuad
 {
 	glm::vec3 position;
+
+
 };
+
 
 struct RenderEntryCoordinateSystem
 {
 	glm::vec3 position;
+
 	// orientation?
+};
+
+struct TexturedVertex
+{
+	glm::vec3 position;
+	glm::vec3 normal;
+	glm::vec2 uv;
+	glm::vec4 color;
 };
 
 struct GameRenderCommands
@@ -111,6 +126,15 @@ struct GameRenderCommands
 
 	uint32 numElements;
 
+	unsigned int maxNumVertex;
+	unsigned int numVertex;
+	TexturedVertex* masterVertexArray;
+
+	// hack for now
+	// eventually we want to add this to a render group concept
+	// instead of per TexturedQuad.
+	glm::mat4 cameraTransform;
+
 	uint8* CurrentPushBufferAt()
 	{
 		return pushBufferBase + pushBufferSize;
@@ -120,6 +144,7 @@ struct GameRenderCommands
 	{
 		return (pushBufferSize + size) <= maxPushBufferSize;
 	}
+
 };
 
 

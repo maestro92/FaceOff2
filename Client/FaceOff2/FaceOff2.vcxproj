@@ -113,6 +113,7 @@
     <ClInclude Include="libraries\json_spirit\json_spirit_writer_options.h" />
     <ClInclude Include="libraries\json_spirit\json_spirit_writer_template.h" />
     <ClInclude Include="protocol\connection.h" />
+    <ClInclude Include="sdl_faceoff_opengl.h" />
     <ClInclude Include="shader.h" />
   </ItemGroup>
   <ItemGroup>
