@@ -161,7 +161,7 @@ Its actually just create a normal context, but you set the "forward compatiblity
 what this does is that it marks any profile, all functionality marked as "deprecated" to be removed.
 that way you can only use the OpenGL 3.2 current API. Not even the deprecated API is allowed
 
-
+ofcourse there is also the possibility that you can query newer OpenGL APIs as extensions
 
 
 
@@ -203,3 +203,28 @@ so my guess is that there I am using some function that was deprecated in 3.1, b
 and its causing my code to not render my dot. 
 
 so what I want to do is to debug. Luckily, OpenGL actually provides debugging function that tells you which functions are in trouble
+so this is essentially recreated the handmade hero day 372.
+
+so you want to get type_glDebugMessageCallbackARB(); to work on your machine. 
+
+Another thing is that you want to set 
+
+				SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
+
+properly for the debugging to work.
+
+
+
+
+##############################################################
+################ Mysterious Error ############################
+##############################################################
+
+so I got an error saying:
+		
+		GL_INVALID_OPERATION error generated. Invalid VAO/VBO/pointer usage.
+
+
+https://stackoverflow.com/questions/13403807/glvertexattribpointer-raising-gl-invalid-operation
+
+turns out I have to make a dummy VAO
