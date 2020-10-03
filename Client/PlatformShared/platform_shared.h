@@ -29,6 +29,10 @@ typedef int64_t int64;
 typedef size_t MemoryIndex;
 
 
+std::ostream& operator<<(std::ostream& os, glm::vec3 v)
+{
+	return os << v.x << " " << v.y << " " << v.z;
+}
 
 struct PlatformAPI
 {
@@ -81,7 +85,7 @@ struct GameMemory
 enum RenderEntryType
 {
 	RenderEntryType_Clear,
-	RenderEntryType_TexturedQuad,
+	RenderEntryType_TexturedQuads,
 	RenderEntryType_CoordinateSystem,
 };
 
@@ -95,11 +99,12 @@ struct RenderEntryClear
 	glm::vec4 color;
 };
 
-struct RenderEntryTexturedQuad
+struct RenderEntryTexturedQuads
 {
 	glm::vec3 position;
 
-
+	int numQuads;
+	int masterVertexArrayOffset;
 };
 
 
@@ -133,7 +138,9 @@ struct GameRenderCommands
 	// hack for now
 	// eventually we want to add this to a render group concept
 	// instead of per TexturedQuad.
-	glm::mat4 cameraTransform;
+//	glm::mat4 cameraTransform;
+	glm::mat4 cameraProjectionMatrix;
+	glm::mat4 cameraTransformMatrix;
 
 	uint8* CurrentPushBufferAt()
 	{
@@ -143,6 +150,14 @@ struct GameRenderCommands
 	bool HasSpaceFor(uint32 size)
 	{
 		return (pushBufferSize + size) <= maxPushBufferSize;
+	}
+
+	void PrintDebug()
+	{
+		for (int i = 0; i < numVertex; i++)
+		{			
+			std::cout << "i " << i << ": " << masterVertexArray[i].position << std::endl;
+		}
 	}
 
 };
