@@ -228,3 +228,31 @@ so I got an error saying:
 https://stackoverflow.com/questions/13403807/glvertexattribpointer-raising-gl-invalid-operation
 
 turns out I have to make a dummy VAO
+
+
+still when I set my code back to version 3.2, it still wouldnt draw the point.
+I am starting to suspect that you have to 
+
+
+I attempted 
+
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+
+and it draws the point. 
+
+but If I have 
+
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+
+it wont draw the dot. So im confused.
+
+
+I either stick to version 3.1
+or stick to 3.2 with compatibility mode. which I dont want.
+
+--	Update
+as it turns out https://stackoverflow.com/questions/13107393/my-triangle-doesnt-render-when-i-use-opengl-core-profile-3-2
+it seems like you need to have a vertex and fragment shader when using 3.2 core profile. You cant render without them.
+
+

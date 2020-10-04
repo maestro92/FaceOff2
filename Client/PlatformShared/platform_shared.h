@@ -138,9 +138,9 @@ struct GameRenderCommands
 	// hack for now
 	// eventually we want to add this to a render group concept
 	// instead of per TexturedQuad.
-//	glm::mat4 cameraTransform;
 	glm::mat4 cameraProjectionMatrix;
 	glm::mat4 cameraTransformMatrix;
+	glm::mat4 transformMatrix;
 
 	uint8* CurrentPushBufferAt()
 	{

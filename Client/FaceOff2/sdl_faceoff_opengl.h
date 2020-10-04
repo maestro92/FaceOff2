@@ -113,6 +113,10 @@ OpenGLGlobalFunction(glGetStringi);
 static char* globalShaderHeaderCode;
 static std::string shadersFolderPath = "./shaders/";
 
+unsigned int VBO;
+
+glm::vec3 vertices[3];
+
 // SDL 
 void SDLInitOpenGL(SDL_Window* window)
 {
@@ -126,6 +130,7 @@ void SDLInitOpenGL(SDL_Window* window)
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+//	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
 
 
 	// Create OpenGL Context
@@ -237,12 +242,46 @@ struct OpenGLStuff
 	TexturedQuadlShader generalShader;
 };
 
+#define DEBUG_SEVERITY_HIGH                              0x9146
+#define DEBUG_SEVERITY_MEDIUM                            0x9147
+#define DEBUG_SEVERITY_LOW                               0x9148
+#define DEBUG_SEVERITY_NOTIFICATION                      0x826B
+
 
 void WINAPI OpenGLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
 	char* ErrorMessage = (char *)message;
-	std::cout << ErrorMessage << std::endl;
-	assert(!"OpenGL Error encountered");
+	std::cout << "Type: " << type << std::endl;
+
+	switch (severity)
+	{
+		case DEBUG_SEVERITY_HIGH:
+		{
+			std::cout << "severity: DEBUG_SEVERITY_HIGH" << std::endl;
+		}
+		break;
+		case DEBUG_SEVERITY_MEDIUM:
+		{
+			std::cout << "severity: DEBUG_SEVERITY_LOW" << std::endl;
+		}
+		break;
+		case DEBUG_SEVERITY_LOW:
+		{
+			std::cout << "severity: DEBUG_SEVERITY_LOW" << std::endl;
+		}
+		break;
+		case DEBUG_SEVERITY_NOTIFICATION:
+		{
+			std::cout << "severity: DEBUG_SEVERITY_NOTIFICATION" << std::endl;
+		}
+		break;
+	}
+
+	std::cout << "ErrorMessage: " << ErrorMessage << std::endl;
+	if (severity != DEBUG_SEVERITY_NOTIFICATION)
+	{
+		assert(!"OpenGL Error encountered");
+	}
 }
 
 void GLAPIENTRY
@@ -444,34 +483,39 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 	glClearColor(0, 0, 0, 1);
 	glEnable(GL_DEPTH_TEST);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	
 
-	glEnableVertexAttribArray(openGL->vertexBufferHandle);
-	glBindBuffer(GL_ARRAY_BUFFER, openGL->vertexBufferHandle);
-	glVertexAttribPointer(openGL->vertexBufferHandle, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-	glDrawArrays(GL_POINTS, 0, 1);
-
-	glDisableVertexAttribArray(0);
-
-	glMatrixMode(GL_TEXTURE);
-	glLoadIdentity();
 	/*
+	UseShaderProgramBegin(&openGL->generalShader, &commands->transformMatrix);
+	glBindBuffer(GL_ARRAY_BUFFER, openGL->vertexBufferHandle);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glDisableVertexAttribArray(0);
 	GLenum err;
 	while ((err = glGetError()) != GL_NO_ERROR)
 	{
 		// Process/log the error.
 		std::cout << "err " << err << std::endl;
 	}
+	UseShaderProgramEnd(&openGL->generalShader);
 	*/
 
-#if 0
+#if 1
 	uint8* curAt = commands->pushBufferBase;
-	UseShaderProgramBegin(&openGL->generalShader, &commands->cameraTransform);
+
+	glBindBuffer(GL_ARRAY_BUFFER, openGL->vertexBufferHandle);
+
+	int numVertex = commands->numVertex;
+	int sizebytes = commands->numVertex * sizeof(TexturedVertex);
+	glBufferData(GL_ARRAY_BUFFER, commands->numVertex * sizeof(TexturedVertex),
+		commands->masterVertexArray, GL_STATIC_DRAW);
+
+
+	UseShaderProgramBegin(&openGL->generalShader, &commands->transformMatrix);
 
 	// gl buffer data
-	glBufferData(GL_ARRAY_BUFFER, commands->numVertex * sizeof(TexturedVertex),
-		commands->masterVertexArray, GL_STREAM_DRAW);
 
 
 
@@ -497,12 +541,12 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 				RenderEntryTexturedQuads* entry = (RenderEntryTexturedQuads*)data;
 
 
-				std::cout << "drawing " << entry->numQuads << std::endl;
+				// std::cout << "drawing " << entry->numQuads << std::endl;
 
 				for (int i = 0; i < entry->numQuads; i++)
 				{
 					int offset = entry->masterVertexArrayOffset + i * 4;
-					glDrawArrays(GL_POINTS, offset, 4);
+					glDrawArrays(GL_TRIANGLE_STRIP, offset, 4);
 				}
 
 			}
@@ -534,13 +578,20 @@ void initApplicationOpenGL(OpenGLStuff* openGL)
 	glBindVertexArray(DummyVertexArray);
 
 
+	/*
+	// glm::vec3 vertices[3];
+	vertices[0] = glm::vec3(-1.0f, -1.0f, 0.0f);
+	vertices[1] = glm::vec3(1.0f, -1.0f, 0.0f);
+	vertices[2] = glm::vec3(0.0f, 1.0f, 0.0f);
+	
+	glGenBuffers(1, &openGL->vertexBufferHandle);
+	glBindBuffer(GL_ARRAY_BUFFER, openGL->vertexBufferHandle);
+	// glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	*/
 
-	glm::vec3 vertices[1];
-	vertices[0] = glm::vec3(0.0f, 0.0f, 0.0f);
 
 	glGenBuffers(1, &openGL->vertexBufferHandle);
 	glBindBuffer(GL_ARRAY_BUFFER, openGL->vertexBufferHandle);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3), vertices, GL_STATIC_DRAW);
 
 	CompileGeneralShaderProgram(&openGL->generalShader);
 

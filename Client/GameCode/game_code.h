@@ -20,6 +20,7 @@ using namespace std;
 struct CameraEntity
 {
 	glm::vec3 position;
+	glm::vec3 dir;
 };
 
 struct Entity
@@ -77,6 +78,7 @@ void* PushRenderElement_(GameRenderCommands* commands, RenderEntryType type, uin
 	return result;
 }
 
+// p0 p1 p2 p3 in clock wise order
 void PushQuad(GameRenderCommands* gameRenderCommands, TransformData* transformData, int texture,
 													glm::vec3 p0, glm::vec2 uv0, glm::vec4 color0,
 												    glm::vec3 p1, glm::vec2 uv1, glm::vec4 color1,
@@ -99,15 +101,17 @@ void PushQuad(GameRenderCommands* gameRenderCommands, TransformData* transformDa
 	vertexArray[1].uv = uv1;
 	vertexArray[1].color = color1;
 
-	vertexArray[2].position = p2;
-	vertexArray[2].normal = p2;
-	vertexArray[2].uv = uv2;
-	vertexArray[2].color = color2;
+	// Note that vertexArray[2] and vertexArray[3] has the points swapped since we want to
+	// draw this with trangle strips.
+	vertexArray[2].position = p3;
+	vertexArray[2].normal = p3;
+	vertexArray[2].uv = uv3;
+	vertexArray[2].color = color3;
 
-	vertexArray[3].position = p3;
-	vertexArray[3].normal = p3;
-	vertexArray[3].uv = uv3;
-	vertexArray[3].color = color3;
+	vertexArray[3].position = p2;
+	vertexArray[3].normal = p2;
+	vertexArray[3].uv = uv2;
+	vertexArray[3].color = color2;
 
 	gameRenderCommands->numVertex += 4;
 }
@@ -199,10 +203,51 @@ void PushCube(GameRenderCommands* gameRenderCommands, TransformData* transformDa
 }
 
 
-void WorldTickAndRender(GameState* gameState, GameRenderCommands* gameRenderCommands)
+
+
+glm::vec3 GetHorizontalVector(glm::vec3 dir, bool left)
+{
+	glm::vec3 supportingVector = glm::vec3(0, 1, 0);
+
+	if (glm::dot(dir, supportingVector) == 1)
+	{
+		supportingVector = glm::vec3(0, 0, 1);
+	}
+
+	glm::vec3 result = -glm::cross(dir, supportingVector);
+	if (!left)
+	{
+		result = -result;
+	}
+	
+	return result;
+}
+
+
+void WorldTickAndRender(GameState* gameState, GameInputState* gameInputState, GameRenderCommands* gameRenderCommands)
 {
 	// process input
+	float stepSize = 0.05f;
+	if (gameInputState->moveForward.endedDown)
+	{
+		gameState->camera.position += stepSize * gameState->camera.dir;
+	}
 
+	if (gameInputState->moveLeft.endedDown)
+	{
+		gameState->camera.position += stepSize * GetHorizontalVector(gameState->camera.dir, true);
+	}
+
+	if (gameInputState->moveRight.endedDown)
+	{
+		gameState->camera.position += stepSize * GetHorizontalVector(gameState->camera.dir, false);
+	}
+
+	if (gameInputState->moveBack.endedDown)
+	{
+		gameState->camera.position += -stepSize * gameState->camera.dir;
+	}
+	cout << "camera pos " << gameState->camera.position << endl;
 	// update camera
 
 
@@ -211,12 +256,15 @@ void WorldTickAndRender(GameState* gameState, GameRenderCommands* gameRenderComm
 	TransformData transformData = {};
 
 	glm::mat4 cameraTransform = glm::translate(gameState->camera.position);
-	glm::mat4 cameraProj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f);
+	float dim = 20;
+//	glm::mat4 cameraProj = glm::ortho(-dim, dim, -dim, dim);
+	glm::mat4 cameraProj = glm::perspective(45.0f, 800.0f / 640.0f, 0.5f, 1000.0f);
 
 	transformData.cameraTransform = cameraProj * glm::inverse(cameraTransform);
 
 	gameRenderCommands->cameraProjectionMatrix = cameraProj;
 	gameRenderCommands->cameraTransformMatrix = cameraTransform;
+	gameRenderCommands->transformMatrix = transformData.cameraTransform;
 
 
 	for (int i = 0; i < gameState->entityCount; i++)
@@ -269,14 +317,16 @@ extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, Ga
 		for (int i = 0; i < gameState->entityCount; i++)
 		{
 			gameState->entities[i].pos = glm::dvec3(5 - i, 5 - i, 5 - i);
-//			cout << i << ": " << gameState->entities[i].pos << std::endl;
+			//			cout << i << ": " << gameState->entities[i].pos << std::endl;
  		}
 
-		gameState->camera.position = glm::dvec3(0, 0, 0);
+		gameState->camera.position = glm::dvec3(0, 5, 20);
+		gameState->camera.dir = glm::dvec3(0, 0, -1);
+
 		gameState->isInitalized = true;
 	}
 
-	WorldTickAndRender(gameState, gameRenderCommands);
+	WorldTickAndRender(gameState, gameInputState, gameRenderCommands);
 
 
 	// render bitmaps

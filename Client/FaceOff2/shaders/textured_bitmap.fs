@@ -16,5 +16,5 @@ void main()
 	FragColor = vec4(vf_normal.x, vf_UV.y, 0, 1);
 
 	FragColor = vf_color; // texture(u_texture, tc);
-	FragColor = vec4(1, 1, 0, 1);
+//	FragColor = vec4(1, 1, 0, 1);
 }
