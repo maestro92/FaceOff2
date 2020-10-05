@@ -535,26 +535,26 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 			
 			case RenderEntryType_TexturedQuads:
 			{	
-
 				// Iterate 
 				curAt += sizeof(RenderEntryTexturedQuads);
 				RenderEntryTexturedQuads* entry = (RenderEntryTexturedQuads*)data;
-
-
-				// std::cout << "drawing " << entry->numQuads << std::endl;
 
 				for (int i = 0; i < entry->numQuads; i++)
 				{
 					int offset = entry->masterVertexArrayOffset + i * 4;
 					glDrawArrays(GL_TRIANGLE_STRIP, offset, 4);
 				}
-
 			}
 			break;
 
-			case RenderEntryType_CoordinateSystem:
+			case RenderEntryType_ColoredLines:
 			{
+				// Iterate 
+				curAt += sizeof(RenderEntryColoredLines);
+				RenderEntryColoredLines* entry = (RenderEntryColoredLines*)data;
 
+				int offset = entry->masterVertexArrayOffset;
+				glDrawArrays(GL_LINES, offset, entry->numLines);
 			}
 			break;
 		}

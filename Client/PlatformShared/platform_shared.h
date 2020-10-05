@@ -34,6 +34,26 @@ std::ostream& operator<<(std::ostream& os, glm::vec3 v)
 	return os << v.x << " " << v.y << " " << v.z;
 }
 
+std::ostream& operator<<(std::ostream& os, glm::mat4 m)
+{
+	return os << m[0][0] << " " << m[0][1] << " " << m[0][2] << " " << m[0][3] << "\n"
+		      << m[1][0] << " " << m[1][1] << " " << m[1][2] << " " << m[1][3] << "\n"
+			  << m[2][0] << " " << m[2][1] << " " << m[2][2] << " " << m[2][3] << "\n"
+	          << m[3][0] << " " << m[3][1] << " " << m[3][2] << " " << m[3][3] << "\n";;
+
+}
+
+enum GameInputMouseButton
+{
+	PlatformMouseButton_Left,
+	PlatformMouseButton_Middle,
+	PlatformMouseButton_Right,
+	PlatformMouseButton_Extended0,
+	PlatformMouseButton_Extended1,
+
+	PlatformMouseButton_Count,
+};
+
 struct PlatformAPI
 {
 
@@ -58,6 +78,8 @@ struct GameInputState
 		GameButtonState moveBack;
 	};
 
+	GameButtonState mouseButtons[PlatformMouseButton_Count];
+	double mouseX, mouseY;
 	/*
 	// For debugging only;
 	double mouseX, mouseY, mouseZ;
@@ -86,7 +108,7 @@ enum RenderEntryType
 {
 	RenderEntryType_Clear,
 	RenderEntryType_TexturedQuads,
-	RenderEntryType_CoordinateSystem,
+	RenderEntryType_ColoredLines,
 };
 
 struct RenderEntryHeader
@@ -101,18 +123,14 @@ struct RenderEntryClear
 
 struct RenderEntryTexturedQuads
 {
-	glm::vec3 position;
-
 	int numQuads;
 	int masterVertexArrayOffset;
 };
 
-
-struct RenderEntryCoordinateSystem
+struct RenderEntryColoredLines
 {
-	glm::vec3 position;
-
-	// orientation?
+	int numLines;
+	int masterVertexArrayOffset;
 };
 
 struct TexturedVertex
@@ -164,5 +182,7 @@ struct GameRenderCommands
 
 
 // make a type that this function template
-typedef void(*UpdateAndRender_t)(GameMemory* gameMemory, GameInputState* gameInput, GameRenderCommands* gameRenderCommands);
+typedef void(*UpdateAndRender_t)(GameMemory* gameMemory, 
+								GameInputState* gameInput, 
+								GameRenderCommands* gameRenderCommands, glm::ivec2 windowDimensions, bool isDebugMode);
 typedef void(*test1_t)();

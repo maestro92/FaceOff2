@@ -20,7 +20,31 @@ using namespace std;
 struct CameraEntity
 {
 	glm::vec3 position;
-	glm::vec3 dir;
+
+	// camera is viewing along -zAxis
+	glm::vec3 xAxis;
+	glm::vec3 yAxis;
+	glm::vec3 zAxis;
+
+	double pitch;
+	void SetViewDirection(glm::vec3 viewDirection)
+	{
+		zAxis = -viewDirection;
+	}
+
+	glm::vec3 GetViewDirection()
+	{
+		return -zAxis;
+	}
+
+	// usually you just pass in the gluLookAtMatrix
+	void SetOrientation(glm::mat4 cameraMatrix)
+	{
+		// Hack: Todo, get rid of this extra inverse
+		xAxis = glm::vec3(cameraMatrix[0][0], cameraMatrix[0][1], cameraMatrix[0][2]);
+		yAxis = glm::vec3(cameraMatrix[1][0], cameraMatrix[1][1], cameraMatrix[1][2]);
+		zAxis = glm::vec3(cameraMatrix[2][0], cameraMatrix[2][1], cameraMatrix[2][2]);
+	}
 };
 
 struct Entity
@@ -48,6 +72,8 @@ struct GameState
 	int maxEntityCount;
 
 	CameraEntity camera;
+
+	bool mouseIsDebugMode;
 };
 
 struct TransformData
@@ -115,7 +141,6 @@ void PushQuad(GameRenderCommands* gameRenderCommands, TransformData* transformDa
 
 	gameRenderCommands->numVertex += 4;
 }
-
 
 void PushCube(GameRenderCommands* gameRenderCommands, TransformData* transformData, glm::vec3 entityPosition, glm::vec3 dim)
 {
@@ -202,6 +227,48 @@ void PushCube(GameRenderCommands* gameRenderCommands, TransformData* transformDa
 													p7, t2, c2);
 }
 
+/*
+void PushLine(GameRenderCommands* gameRenderCommands, TransformData* transformData, glm::vec3 start, glm::vec3 end, glm::vec3 color)
+{
+
+}
+*/
+
+// xyz coordinate system
+void PushCoordinateSystem(GameRenderCommands* gameRenderCommands, TransformData* transformData, glm::vec3 origin, glm::vec3 dim)
+{
+	glm::vec3 xAxisEnd = origin + dim.x * glm::vec3(1, 0, 0);		glm::vec4 xAxisColor = glm::vec4(1, 0, 0, 1);
+	glm::vec3 yAxisEnd = origin + dim.y * glm::vec3(0, 1, 0);		glm::vec4 yAxisColor = glm::vec4(0, 1, 0, 1);
+	glm::vec3 zAxisEnd = origin + dim.z * glm::vec3(0, 0, 1);		glm::vec4 zAxisColor = glm::vec4(0, 0, 1, 1);
+
+	RenderEntryColoredLines* entry = PushRenderElement(gameRenderCommands, ColoredLines);
+
+	entry->masterVertexArrayOffset = gameRenderCommands->numVertex;
+	entry->numLines = 6;
+
+	TexturedVertex* vertexArray = &(gameRenderCommands->masterVertexArray[gameRenderCommands->numVertex]);
+	vertexArray[0].position = origin;
+	vertexArray[0].color = xAxisColor;
+
+	vertexArray[1].position = xAxisEnd;
+	vertexArray[1].color = xAxisColor;
+
+	// y axis
+	vertexArray[2].position = origin;
+	vertexArray[2].color = yAxisColor;
+
+	vertexArray[3].position = yAxisEnd;
+	vertexArray[3].color = yAxisColor;
+
+	// z axis
+	vertexArray[4].position = origin;
+	vertexArray[4].color = zAxisColor;
+
+	vertexArray[5].position = zAxisEnd;
+	vertexArray[5].color = zAxisColor;
+
+	gameRenderCommands->numVertex += 6;
+}
 
 
 
@@ -223,44 +290,215 @@ glm::vec3 GetHorizontalVector(glm::vec3 dir, bool left)
 	return result;
 }
 
-
-void WorldTickAndRender(GameState* gameState, GameInputState* gameInputState, GameRenderCommands* gameRenderCommands)
+glm::mat4 LookAtMatrix(glm::vec3 eye, glm::vec3 direction)
 {
-	// process input
-	float stepSize = 0.05f;
+	glm::vec3 up = glm::vec3(0, 1, 0);
+
+	glm::mat4 result = glm::mat4(1.0);
+
+	glm::vec3 xaxis = glm::cross(up, direction);
+	xaxis = glm::normalize(xaxis);
+
+	glm::vec3 yaxis = glm::cross(direction, xaxis);
+	yaxis = glm::normalize(xaxis);
+
+	result[0][0] = xaxis.x;
+	result[1][0] = yaxis.x;
+	result[2][0] = direction.x;
+
+	result[0][1] = xaxis.y;
+	result[1][1] = yaxis.y;
+	result[2][1] = direction.y;
+
+	result[0][2] = xaxis.z;
+	result[1][2] = yaxis.z;
+	result[2][2] = direction.z;
+//	result = glm::mat4(1.0);
+	return result;
+}
+
+
+// this is copying glm::lookat implementation, only that we are doing the inverse ourselves
+glm::mat4 GetCameraMatrix(const glm::vec3 & eye, const glm::vec3 & center, const glm::vec3 & up)
+{
+	glm::vec3 f = glm::normalize(center - eye);
+	glm::vec3 u = glm::normalize(up);
+	glm::vec3 s = glm::normalize(glm::cross(f, u));
+	u = glm::cross(s, f);
+
+	glm::mat4 result = glm::mat4(1.0);
+	
+	result[0][0] = s.x;
+	result[0][1] = s.y;
+	result[0][2] = s.z;
+
+	result[1][0] = u.x;
+	result[1][1] = u.y;
+	result[1][2] = u.z;
+
+	result[2][0] = -f.x;
+	result[2][1] = -f.y;
+	result[2][2] = -f.z;
+
+	result[3][0] = eye.x;
+	result[3][1] = eye.y;
+	result[3][2] = eye.z;
+
+	/*
+	Result[0][0] = s.x;
+	Result[1][0] = s.y;
+	Result[2][0] = s.z;
+	
+	Result[0][1] = u.x;
+	Result[1][1] = u.y;
+	Result[2][1] = u.z;
+	
+	Result[0][2] = -f.x;
+	Result[1][2] = -f.y;
+	Result[2][2] = -f.z;
+	
+	Result[3][0] = -dot(s, eye);
+	Result[3][1] = -dot(u, eye);
+	Result[3][2] = dot(f, eye);
+	*/
+	return result;
+}
+
+
+
+
+void WorldTickAndRender(GameState* gameState, GameInputState* gameInputState, GameRenderCommands* gameRenderCommands, glm::ivec2 windowDimensions, bool isDebugMode)
+{
+	float angleXInDeg = 0;
+	float angleYInDeg = 0;
+
+	// float angleXInRad = 0;
+	// float angleYInRad = 0;
+	CameraEntity* cam = &gameState->camera;
+
+	if (!isDebugMode)
+	{
+		float dx = gameInputState->mouseX - windowDimensions.x / 2;
+		float dy = gameInputState->mouseY - windowDimensions.y / 2;
+		
+		if (dx != 0)
+		{
+			cout << "dx " << dx << endl;
+		}
+		if (dy != 0)
+		{
+			cout << ">>>>> dy " << dy << endl;
+		}
+			
+
+		angleXInDeg = dx * 0.05;
+		angleYInDeg = dy * 0.05;
+
+		if (cam->pitch + angleYInDeg >= 179)
+		{
+			angleYInDeg = 179 - cam->pitch;
+		}
+
+		if (cam->pitch + angleYInDeg <= -179)
+		{
+			angleYInDeg = -179 - cam->pitch;
+		}
+
+		if (angleYInDeg != 0)
+		{
+			cout << "		angleYInDeg " << angleYInDeg << endl;
+		}
+
+		cam->pitch += angleYInDeg;
+
+		if (angleYInDeg != 0)
+		{
+			cout << "		cam->Pitch " << cam->pitch << endl;
+		}
+
+		// angleXInRad = angleXInDeg * 3.14f / 180.0f;
+		// angleYInRad = angleYInDeg * 3.14f / 180.0f;
+
+		if (dx != 0)
+		{
+			cout << "angleXInDeg " << angleXInDeg << endl;
+		}
+		/*
+		if (dy != 0)
+		{
+			cout << "		angleYInDeg " << angleYInDeg << endl;
+		}
+		*/
+	}
+
+
+
+
+	// rotate around x with dy then rotate around Y with dx
+	glm::vec3 newViewDir = glm::vec3(glm::rotate(angleYInDeg, cam->xAxis) *
+		glm::rotate(-angleXInDeg, cam->yAxis) * glm::vec4(gameState->camera.GetViewDirection(), 1));
+
+	newViewDir = glm::normalize(newViewDir);
+	//	cam->SetViewDirection(newViewDir);
+
+
+		// cout << "gameState->camera.dir " << gameState->camera.dir << endl;
+
+
+		// process input
+	float stepSize = 0.5f;
 	if (gameInputState->moveForward.endedDown)
 	{
-		gameState->camera.position += stepSize * gameState->camera.dir;
+		gameState->camera.position += stepSize * newViewDir;
 	}
 
 	if (gameInputState->moveLeft.endedDown)
 	{
-		gameState->camera.position += stepSize * GetHorizontalVector(gameState->camera.dir, true);
+		gameState->camera.position += stepSize * GetHorizontalVector(newViewDir, true);
 	}
 
 	if (gameInputState->moveRight.endedDown)
 	{
-		gameState->camera.position += stepSize * GetHorizontalVector(gameState->camera.dir, false);
+		gameState->camera.position += stepSize * GetHorizontalVector(newViewDir, false);
 	}
 
 	if (gameInputState->moveBack.endedDown)
 	{
-		gameState->camera.position += -stepSize * gameState->camera.dir;
+		gameState->camera.position += -stepSize * newViewDir;
 	}
-	cout << "camera pos " << gameState->camera.position << endl;
 	// update camera
 
 
 	// update camera matrix
+	glm::vec3 center = gameState->camera.position + newViewDir;
+	//	glm::mat4 viewMatrix = glm::lookAt(gameState->camera.position, center, glm::vec3(0, 1, 0));
+
+	glm::vec3 supportUpVector = glm::vec3(0, 1, 0);
+	if (glm::dot(newViewDir, supportUpVector) == 1)
+	{
+		supportUpVector = cam->yAxis;
+	}
+//	cout << " supportUpVector " << supportUpVector << endl;
+
+	glm::mat4 cameraMatrix = GetCameraMatrix(gameState->camera.position, center, supportUpVector);
+	cam->SetOrientation(cameraMatrix);
+
+
+//	cout << "camera pos " << gameState->camera.position << endl;
+//	cout << "view direction " << cam->GetViewDirection() << endl;
+//	cout << cameraMatrix << endl;
 
 	TransformData transformData = {};
 
-	glm::mat4 cameraTransform = glm::translate(gameState->camera.position);
+	glm::mat4 cameraTransform = glm::translate(gameState->camera.position);// *cameraRot;
 	float dim = 20;
 //	glm::mat4 cameraProj = glm::ortho(-dim, dim, -dim, dim);
 	glm::mat4 cameraProj = glm::perspective(45.0f, 800.0f / 640.0f, 0.5f, 1000.0f);
 
-	transformData.cameraTransform = cameraProj * glm::inverse(cameraTransform);
+//	transformData.cameraTransform = cameraProj * glm::inverse(cameraTransform);
+	transformData.cameraTransform = cameraProj * glm::inverse(cameraMatrix);;
+
+	
 
 	gameRenderCommands->cameraProjectionMatrix = cameraProj;
 	gameRenderCommands->cameraTransformMatrix = cameraTransform;
@@ -273,10 +511,15 @@ void WorldTickAndRender(GameState* gameState, GameInputState* gameInputState, Ga
 
 		PushCube(gameRenderCommands, &transformData, entity->pos, glm::vec3(1, 1, 1));
 	}
+
+	float scale = 200;
+	PushCoordinateSystem(gameRenderCommands, &transformData, glm::vec3(0, 0, 0), glm::vec3(scale, scale, scale));
+
 }
 
 
-extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, GameInputState* gameInputState, GameRenderCommands* gameRenderCommands)
+extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, GameInputState* gameInputState, GameRenderCommands* gameRenderCommands, 
+														glm::ivec2 windowDimensions, bool isDebugMode)
 {
 //	cout << "Update And Render-2" << endl;
 
@@ -316,17 +559,21 @@ extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, Ga
 		gameState->maxEntityCount = 1024;
 		for (int i = 0; i < gameState->entityCount; i++)
 		{
-			gameState->entities[i].pos = glm::dvec3(5 - i, 5 - i, 5 - i);
+			gameState->entities[i].pos = glm::vec3(5 - i, 5 - i, 5 - i);
 			//			cout << i << ": " << gameState->entities[i].pos << std::endl;
  		}
 
-		gameState->camera.position = glm::dvec3(0, 5, 20);
-		gameState->camera.dir = glm::dvec3(0, 0, -1);
-
+		gameState->camera = {};
+		gameState->camera.position = glm::vec3(0, 5, 20);
+		gameState->camera.xAxis = glm::vec3(1.0, 0.0, 0.0);
+		gameState->camera.yAxis = glm::vec3(0.0, 1.0, 0.0);
+		gameState->camera.zAxis = glm::vec3(0.0, 0.0, 1.0);
+		
+		gameState->mouseIsDebugMode = false;
 		gameState->isInitalized = true;
 	}
 
-	WorldTickAndRender(gameState, gameInputState, gameRenderCommands);
+	WorldTickAndRender(gameState, gameInputState, gameRenderCommands, windowDimensions, isDebugMode);
 
 
 	// render bitmaps

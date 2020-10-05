@@ -14,7 +14,7 @@
 #include "../GameCode/game_code.h"
 
 
-
+bool debugMode;
 bool is_game_running;
 
 static OpenGLStuff openGL;
@@ -215,6 +215,14 @@ void SDLProcessPendingEvents(GameInputState* game_input_state)
 			}	break;
 
 			case SDL_KEYDOWN:
+			{
+				SDL_Keycode keyCode = event.key.keysym.sym;
+				if (keyCode == SDLK_z)
+				{
+					break;
+				}
+				// still want to process the other key code in SDL_KEYUP
+			}
 			case SDL_KEYUP:
 			{
 				SDL_Keycode keyCode = event.key.keysym.sym;
@@ -240,7 +248,19 @@ void SDLProcessPendingEvents(GameInputState* game_input_state)
 					else if (keyCode == SDLK_d)
 					{
 						SDLProcessKeyboardEvent(&game_input_state->moveRight, isDown);
-					}					
+					}
+					else if (keyCode == SDLK_z)
+					{
+						debugMode = !debugMode;
+						if (debugMode)
+						{
+							SDL_ShowCursor(SDL_ENABLE);
+						}
+						else
+						{
+							SDL_ShowCursor(SDL_DISABLE);
+						}
+					}
 				}
 			}	break;
 
@@ -288,10 +308,13 @@ int main(int argc, char *argv[])
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC | SDL_INIT_AUDIO);
 
 
+	glm::ivec2 windowDimensions = glm::ivec2(800, 640);
 
-	SDL_Window* window = SDL_CreateWindow("FaceOff 2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 640,
+	SDL_Window* window = SDL_CreateWindow("FaceOff 2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowDimensions.x, windowDimensions.y,
 		SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL);
 
+	// we start in game mode, so we disable the mouse cursor
+	SDL_ShowCursor(SDL_DISABLE);
 
 	SDLLoadedCode gameCode = {};
 	gameCode.srcDllFullPath = "../Debug/GameCode.dll";
@@ -302,6 +325,7 @@ int main(int argc, char *argv[])
 
 
 	SDLLoadCode(&gameCode);
+
 
 	SDLInitOpenGL(window);
 	initApplicationOpenGL(&openGL);
@@ -358,6 +382,7 @@ int main(int argc, char *argv[])
 		GameInputState inputs[1] = {};
 		GameInputState* newInput = &inputs[0];
 
+
 		while (is_game_running)
 		{
 			newInput->dtForFrame = targetSecondsPerFrame;
@@ -367,7 +392,34 @@ int main(int argc, char *argv[])
 			SDLProcessPendingEvents(newInput);
 
 			// process mouse events
+			glm::ivec2 mouseP;
+			uint32 mouseState = SDL_GetMouseState(&mouseP.x, &mouseP.y);
+			newInput->mouseX = (float)mouseP.x;
+			newInput->mouseY = (float)windowDimensions.y - mouseP.y;
 
+			Uint32 SDLButtonID[PlatformMouseButton_Count] =
+			{
+				SDL_BUTTON_LMASK,
+				SDL_BUTTON_MMASK,
+				SDL_BUTTON_RMASK,
+				SDL_BUTTON_X1MASK,
+				SDL_BUTTON_X2MASK,
+			};
+
+			// didn't fully understand this part
+			/*
+			for (int i = 0; i < PlatformMouseButton_Count; i++)
+			{
+				new->MouseButtons[i] = OldInput->MouseButtons[ButtonIndex];
+				NewInput->MouseButtons[ButtonIndex].HalfTransitionCount = 0;
+				SDLProcessKeyboardEvent(&NewInput->MouseButtons[ButtonIndex],
+					MouseState & SDLButtonID[ButtonIndex]);
+			}
+			*/
+			if (!debugMode)
+			{
+				SDL_WarpMouseInWindow(window, windowDimensions.x / 2, windowDimensions.y / 2);				
+			}
 
 			GameRenderCommands gameRenderCommands = {};
 			gameRenderCommands.pushBufferBase = (uint8*)renderCommandsPushBuffer;
@@ -380,14 +432,14 @@ int main(int argc, char *argv[])
 
 			// gameCode.updateAndRenderFunction(&gameMemory, newInput, &gameRenderCommands);
 
-			UpdateAndRender(&gameMemory, newInput, &gameRenderCommands);
+			UpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, debugMode);
 
 			if (SDLCheckForCodeChange(&gameCode))
 			{
 				SDLReloadCode(&gameCode);
 			}
 
-			OpenGLRenderCommands(&openGL, &gameRenderCommands, glm::ivec2(0), glm::ivec2(0), glm::ivec2(800, 640));
+			OpenGLRenderCommands(&openGL, &gameRenderCommands, glm::ivec2(0), glm::ivec2(0), windowDimensions);
 
 			RendererEndFrame();
 
