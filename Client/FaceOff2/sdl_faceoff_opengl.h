@@ -519,7 +519,7 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 
 
 
-	for (int i = 0; i < commands->numElements; i++)
+	for (unsigned int i = 0; i < commands->numElements; i++)
 	{
 		RenderEntryHeader* header = (RenderEntryHeader*)curAt;
 		curAt += sizeof(RenderEntryHeader);
@@ -529,6 +529,7 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 		{
 			case RenderEntryType_Clear:
 			{
+
 
 			}
 			break;

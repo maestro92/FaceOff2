@@ -79,7 +79,7 @@ struct GameInputState
 	};
 
 	GameButtonState mouseButtons[PlatformMouseButton_Count];
-	double mouseX, mouseY;
+	float mouseX, mouseY;
 	/*
 	// For debugging only;
 	double mouseX, mouseY, mouseZ;
@@ -172,7 +172,7 @@ struct GameRenderCommands
 
 	void PrintDebug()
 	{
-		for (int i = 0; i < numVertex; i++)
+		for (unsigned int i = 0; i < numVertex; i++)
 		{			
 			std::cout << "i " << i << ": " << masterVertexArray[i].position << std::endl;
 		}

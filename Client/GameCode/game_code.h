@@ -26,7 +26,7 @@ struct CameraEntity
 	glm::vec3 yAxis;
 	glm::vec3 zAxis;
 
-	double pitch;
+	float pitch;
 	void SetViewDirection(glm::vec3 viewDirection)
 	{
 		zAxis = -viewDirection;
@@ -227,12 +227,8 @@ void PushCube(GameRenderCommands* gameRenderCommands, TransformData* transformDa
 													p7, t2, c2);
 }
 
-/*
-void PushLine(GameRenderCommands* gameRenderCommands, TransformData* transformData, glm::vec3 start, glm::vec3 end, glm::vec3 color)
-{
 
-}
-*/
+
 
 // xyz coordinate system
 void PushCoordinateSystem(GameRenderCommands* gameRenderCommands, TransformData* transformData, glm::vec3 origin, glm::vec3 dim)
@@ -391,8 +387,8 @@ void WorldTickAndRender(GameState* gameState, GameInputState* gameInputState, Ga
 		}
 			
 
-		angleXInDeg = dx * 0.05;
-		angleYInDeg = dy * 0.05;
+		angleXInDeg = dx * 0.05f;
+		angleYInDeg = dy * 0.05f;
 
 		if (cam->pitch + angleYInDeg >= 179)
 		{

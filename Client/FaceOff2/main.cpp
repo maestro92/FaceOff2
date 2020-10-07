@@ -17,6 +17,18 @@
 bool debugMode;
 bool is_game_running;
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+
+
+enum AssetTypeId
+{
+	AssetFont,
+	NumAssetType,
+};
+
+
+
 static OpenGLStuff openGL;
 
 struct SDLLoadedCode
@@ -34,6 +46,15 @@ struct SDLLoadedCode
 	UpdateAndRender_t updateAndRenderFunction;
 	test1_t test1Function;
 };
+
+struct LoadedBitmap
+{
+	void* memory;
+	int width;
+	int height;
+};
+
+
 void PrintFullPath(char * partialPath)
 {
 	char full[_MAX_PATH];
@@ -214,6 +235,8 @@ void SDLProcessPendingEvents(GameInputState* game_input_state)
 				is_game_running = false;				
 			}	break;
 
+			
+
 			case SDL_KEYDOWN:
 			{
 				SDL_Keycode keyCode = event.key.keysym.sym;
@@ -260,6 +283,10 @@ void SDLProcessPendingEvents(GameInputState* game_input_state)
 						{
 							SDL_ShowCursor(SDL_DISABLE);
 						}
+					}
+					else if (keyCode == SDLK_ESCAPE)
+					{
+						is_game_running = false;
 					}
 				}
 			}	break;
@@ -310,6 +337,8 @@ int main(int argc, char *argv[])
 
 	glm::ivec2 windowDimensions = glm::ivec2(800, 640);
 
+	// glm::ivec2(1920, 1080);
+
 	SDL_Window* window = SDL_CreateWindow("FaceOff 2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowDimensions.x, windowDimensions.y,
 		SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL);
 
@@ -326,6 +355,7 @@ int main(int argc, char *argv[])
 
 	SDLLoadCode(&gameCode);
 
+//	LoadFontTest();
 
 	SDLInitOpenGL(window);
 	initApplicationOpenGL(&openGL);
@@ -337,7 +367,7 @@ int main(int argc, char *argv[])
 		SDL_ShowWindow(window);
 
 
-		int globalPerfCountFrequency = SDL_GetPerformanceFrequency();
+		uint64 globalPerfCountFrequency = SDL_GetPerformanceFrequency();
 		int monitorRefreshHz = 60;
 		int displayIndex = SDL_GetWindowDisplayIndex(window);
 		SDL_DisplayMode mode = {};
@@ -360,9 +390,10 @@ int main(int argc, char *argv[])
 		gameMemory.debugStorageSize = Megabytes(256);
 
 
+
 		LPVOID baseAddress = 0;
 
-		int totalSize = gameMemory.permenentStorageSize + gameMemory.transientStorageSize + gameMemory.debugStorageSize;
+		uint64 totalSize = gameMemory.permenentStorageSize + gameMemory.transientStorageSize + gameMemory.debugStorageSize;
 		void* gameMemoryBlock = VirtualAlloc(baseAddress, (size_t)totalSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
 		gameMemory.permenentStorage = gameMemoryBlock;

@@ -62,8 +62,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>opengl32.lib;glu32.lib;SDL_image.lib;ws2_32.lib;freetype.lib;SDL2.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>libraries\glew\lib;libraries\freetype\lib;libraries\assimp\lib;libraries\SDL\lib;libraries\SDL_image\lib\x86;C:\Program Files %28x86%29\OpenAL 1.1 SDK\libs\Win32;libraries\SDL2;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opengl32.lib;glu32.lib;SDL_image.lib;ws2_32.lib;SDL2.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>libraries\assimp\lib;libraries\SDL\lib;libraries\SDL_image\lib\x86;libraries\SDL2;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <StackReserveSize>
       </StackReserveSize>
       <Profile>true</Profile>
@@ -93,6 +93,7 @@
   <ItemGroup>
     <ClCompile Include="global.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="test_asset_builder.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="client_server\client_server_enums.h" />
@@ -100,6 +101,8 @@
     <ClInclude Include="global.h" />
     <ClInclude Include="protocol\connection.h" />
     <ClInclude Include="sdl_faceoff_opengl.h" />
+    <ClInclude Include="stb_truetype.h" />
+    <ClInclude Include="test_asset_builder.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="SDL2.dll" />
