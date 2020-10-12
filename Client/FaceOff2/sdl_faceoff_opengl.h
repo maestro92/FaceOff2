@@ -1,13 +1,20 @@
 #pragma once
 
 
-#include "SDL_opengl.h"
+#include <SDL.h>
+#include <SDL_opengl.h>
 
+/*
 #include <Windows.h>
 #include <GL/GL.h>
 #include <GL/GLU.h>
+*/
+
 
 #include <fstream>      // std::ifstream
+
+#include "../PlatformShared/platform_shared.h"
+#include "asset.h"
 
 
 typedef void APIENTRY type_glTexImage2DMultisample(GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height, GLboolean fixedsamplelocations);
@@ -101,6 +108,9 @@ OpenGLGlobalFunction(glGenVertexArrays)
 OpenGLGlobalFunction(glBindBuffer)
 OpenGLGlobalFunction(glGenBuffers)
 OpenGLGlobalFunction(glBufferData)
+// OpenGLGlobalFunction(glActiveTexture2)
+static type_glActiveTexture *glActiveTexture2;
+
 OpenGLGlobalFunction(glDeleteProgram)
 OpenGLGlobalFunction(glDeleteShader)
 OpenGLGlobalFunction(glDeleteFramebuffers)
@@ -179,7 +189,9 @@ void SDLInitOpenGL(SDL_Window* window)
 		SDLGetOpenGLFunction(glBindBuffer);
 		SDLGetOpenGLFunction(glGenBuffers);
 		SDLGetOpenGLFunction(glBufferData);
-		//	SDLGetOpenGLFunction(glActiveTexture);
+		// SDLGetOpenGLFunction(glActiveTexture);
+		glActiveTexture2 = (type_glActiveTexture*)SDL_GL_GetProcAddress("glActiveTexture");
+		
 		SDLGetOpenGLFunction(glGetStringi);
 		SDLGetOpenGLFunction(glDeleteProgram);
 		SDLGetOpenGLFunction(glDeleteShader);
@@ -429,6 +441,8 @@ void UseShaderProgramBegin(TexturedQuadlShader* program, glm::mat4* cameraTransf
 	}
 
 	glUniformMatrix4fv(program->MVPMatId, 1, GL_FALSE, glm::value_ptr(*cameraTransform));
+
+	// 0 here represents whether its GL_TEXTURE0, GL_TEXTURE1, or GL_TEXTURE2
 	glUniform1i(program->textureId, 0);
 }
 
@@ -482,6 +496,8 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 	
 	glClearColor(0, 0, 0, 1);
 	glEnable(GL_DEPTH_TEST);
+
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	/*
@@ -542,9 +558,24 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 
 				for (int i = 0; i < entry->numQuads; i++)
 				{
+					/*
+					int bitmayArrayIndex = entry->masterBitmapArrayOffset;
+					if (bitmayArrayIndex != -1)
+					{
+						LoadedBitmap* bitmap = commands->masterBitmapArray[bitmayArrayIndex];
+						glBindTexture(GL_TEXTURE_2D, (GLuint)POINTER_TO_UINT32(bitmap->textureHandle));
+					}
+					*/
+					int bitmayArrayIndex = entry->masterBitmapArrayOffset;
+					LoadedBitmap* bitmap = commands->masterBitmapArray[bitmayArrayIndex];
+
+					glActiveTexture2(GL_TEXTURE0);
+					glBindTexture(GL_TEXTURE_2D, (GLuint)POINTER_TO_UINT32(bitmap->textureHandle));
 					int offset = entry->masterVertexArrayOffset + i * 4;
 					glDrawArrays(GL_TRIANGLE_STRIP, offset, 4);
 				}
+
+				glBindTexture(GL_TEXTURE_2D, 0);
 			}
 			break;
 
@@ -554,8 +585,16 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 				curAt += sizeof(RenderEntryColoredLines);
 				RenderEntryColoredLines* entry = (RenderEntryColoredLines*)data;
 
-				int offset = entry->masterVertexArrayOffset;
-				glDrawArrays(GL_LINES, offset, entry->numLines);
+				int bitmayArrayIndex = entry->masterBitmapArrayOffset;
+				LoadedBitmap* bitmap = commands->masterBitmapArray[bitmayArrayIndex];
+
+				glActiveTexture2(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, (GLuint)POINTER_TO_UINT32(bitmap->textureHandle));
+				int offset = entry->masterVertexArrayOffset + i * 4;
+				glDrawArrays(GL_TRIANGLE_STRIP, offset, 4);
+
+				offset = entry->masterVertexArrayOffset;
+				glDrawArrays(GL_LINES, offset, entry->numLinePoints);
 			}
 			break;
 		}
@@ -564,8 +603,34 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 #endif
 }
 
+// we are returning a uint32. that uint32 is something that can be interpreted as memory address (void*)
+void* OpenGLAllocateTexture(uint32 width, uint32 height, void* data)
+{
+	GLuint handle;
+	glGenTextures(1, &handle);
+	glBindTexture(GL_TEXTURE_2D, handle);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+	// glGenerateMipmap(GL_TEXTURE_2D); // Unavailable in OpenGL 2.1, use gluBuild2DMipmaps() insteads.
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	assert(sizeof(handle) <= sizeof(void *));
+	return ((void*) handle);
+}
+
+/*
+void LoadAssetWorkDirectly(GameAssets* gameAssets, BitmapId bitmapId)
+{
+	LoadedBitmap* loadedBitmap = gameAssets->bitmaps[bitmapId.value].loadedBitmap;
+	loadedBitmap->textureHandle = OpenGLAllocateTexture(loadedBitmap->width, loadedBitmap->height, loadedBitmap->memory);
+}
+*/
 
 void initApplicationOpenGL(OpenGLStuff* openGL)
 {

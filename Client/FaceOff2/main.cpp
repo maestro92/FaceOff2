@@ -8,6 +8,7 @@
 #include <string>
 #include <iostream>
 
+#include "SDL_image.h"
 
 #include "sdl_faceoff_opengl.h"
 
@@ -20,12 +21,6 @@ bool is_game_running;
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-
-enum AssetTypeId
-{
-	AssetFont,
-	NumAssetType,
-};
 
 
 
@@ -44,15 +39,8 @@ struct SDLLoadedCode
 	HMODULE dllBaseAddress;
 
 	UpdateAndRender_t updateAndRenderFunction;
-	test1_t test1Function;
 };
 
-struct LoadedBitmap
-{
-	void* memory;
-	int width;
-	int height;
-};
 
 
 void PrintFullPath(char * partialPath)
@@ -76,6 +64,47 @@ FILETIME SDLGetFileLastWriteTime(const char* filename)
 
 	return lastWriteTime;
 }
+
+BitmapInfo SDLLoadPNGFile(char* filename)
+{
+	BitmapInfo result = {};
+	SDL_Surface* image = IMG_Load(filename);
+//	SDL_Surface* image = IMG_Load_RW(SDL_RWFromFile("Assets/wall2.png", "rb"), 1);
+	
+	if (image == nullptr)
+	{
+		printf("1Unable to load image %s! SDL_image Error: %s\n", filename, IMG_GetError());
+	}
+
+	result.width = image->w;
+	result.height = image->h;
+	result.pitch = image->pitch;
+
+	/*
+	cout << "result.dim " << result.width << " " << result.height << endl;
+	cout << "result.pitch " << result.pitch << " " << endl;
+	cout << "format " << image->format->format << endl;
+
+	cout << "BitsPerPixel " << image->format->BitsPerPixel << endl;
+	cout << "BytesPerPixel " << image->format->BytesPerPixel << endl;
+
+	cout << SDL_GetPixelFormatName(image->format->format) << endl;
+	*/
+
+	assert(result.pitch == result.width * 4);
+
+
+	// we are assuming 32 bit. So result.pitch == result.width * 4.
+//	int totalByteSize = result.width * result.height * 4;
+	int totalByteSize = result.pitch * result.height;
+
+//	cout << "totalByteSize " << totalByteSize << endl;
+	result.memory = VirtualAlloc(0, (size_t)totalByteSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	memcpy(result.memory, image->pixels, totalByteSize);
+
+	return result;
+}
+
 
 
 void SDLLoadCode(SDLLoadedCode* loaded_code)
@@ -112,17 +141,7 @@ void SDLLoadCode(SDLLoadedCode* loaded_code)
 			loaded_code->isValid = false;
 		}
 
-		// load the function names
-		test1_t test1Function = (test1_t)GetProcAddress(loaded_code->dllBaseAddress, "test1");
 
-		if (test1Function)
-		{
-			loaded_code->test1Function = test1Function;
-		}
-		else
-		{
-			std::cout << "Error in test1Function GetProcAddress: " << GetLastError() << std::endl;
-		}
 	}
 	else
 	{
@@ -141,7 +160,6 @@ void SDLUnloadCode(SDLLoadedCode* loaded_code)
 	}
 	
 	loaded_code->updateAndRenderFunction = NULL;
-	loaded_code->test1Function = NULL;
 	loaded_code->isValid = false;
 }
 
@@ -400,6 +418,8 @@ int main(int argc, char *argv[])
 		gameMemory.transientStorage = ((uint8_t*)gameMemory.permenentStorage + gameMemory.permenentStorageSize);
 		gameMemory.debugStorage = ((uint8_t*)gameMemory.permenentStorage + gameMemory.permenentStorageSize + gameMemory.transientStorageSize);
 
+		gameMemory.platformAPI.readImageFile = (PlatformReadImageFile)SDLLoadPNGFile;
+		gameMemory.platformAPI.allocateTexture = (PlatformAllocateTexture)OpenGLAllocateTexture;
 
 		uint32_t renderCommandsPushBufferSize = Megabytes(64);
 		void* renderCommandsPushBuffer = VirtualAlloc(0, (size_t)renderCommandsPushBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -407,8 +427,8 @@ int main(int argc, char *argv[])
 		int maxNumVertex = 65535;
 		void* texturedArrayBuffer = VirtualAlloc(0, maxNumVertex * sizeof(TexturedVertex), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
-
-
+		int maxNumBitmaps = 1024;
+		void* bitmapArrayBuffer = VirtualAlloc(0, maxNumBitmaps * sizeof(LoadedBitmap*), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
 		GameInputState inputs[1] = {};
 		GameInputState* newInput = &inputs[0];
@@ -460,6 +480,13 @@ int main(int argc, char *argv[])
 			gameRenderCommands.maxNumVertex = maxNumVertex;
 			gameRenderCommands.masterVertexArray = (TexturedVertex*)texturedArrayBuffer;
 			gameRenderCommands.numVertex = 0;
+
+			gameRenderCommands.maxNumBitmaps = maxNumBitmaps;
+			gameRenderCommands.masterBitmapArray = (LoadedBitmap**)bitmapArrayBuffer;
+			gameRenderCommands.numBitmaps = 0;
+
+
+//			gameRenderCommands.
 
 			// gameCode.updateAndRenderFunction(&gameMemory, newInput, &gameRenderCommands);
 

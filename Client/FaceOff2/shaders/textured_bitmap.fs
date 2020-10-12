@@ -9,12 +9,13 @@ out vec4 FragColor;
 
 void main()
 {
-	vec2 tc = vf_UV;	 //	tc.y = 1.0 - vf_UV.y;
+	vec2 tc = vf_UV;	 tc.y = 1.0 - vf_UV.y;
 	
-	// add mod color
-	// vec4 modColor = 
-	FragColor = vec4(vf_normal.x, vf_UV.y, 0, 1);
+//	FragColor = vec4(vf_normal.x, vf_UV.y, 0, 1);
 
-	FragColor = vf_color; // texture(u_texture, tc);
+	FragColor = texture(u_texture, tc) * vf_color;
+//	FragColor = vf_color;
+
+//	FragColor = vec4(vf_UV.x, vf_UV.y, 0, 1);
 //	FragColor = vec4(1, 1, 0, 1);
 }

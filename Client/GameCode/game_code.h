@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../PlatformShared/platform_shared.h"
-
+#include "../FaceOff2/asset.h"
 
 #include <iostream>
 
@@ -16,11 +16,17 @@ using namespace std;
 #define PushArray(Arena, count, type)
 */
 
+// typedef void(*PlatformLoadTexture)(GameAssets* gameAssets, BitmapId bitmapId);
+
+glm::vec4 COLOR_WHITE = glm::vec4(1, 1, 1, 1);
+
+static PlatformAPI platformAPI;
 
 struct CameraEntity
 {
+	// consider storing these 4 as a matrix?
+	// then add accessors
 	glm::vec3 position;
-
 	// camera is viewing along -zAxis
 	glm::vec3 xAxis;
 	glm::vec3 yAxis;
@@ -76,6 +82,13 @@ struct GameState
 	bool mouseIsDebugMode;
 };
 
+struct TransientState
+{
+	bool isInitalized;
+	GameAssets* assets;
+};
+
+
 struct TransformData
 {
 	glm::mat4 cameraTransform;
@@ -105,7 +118,7 @@ void* PushRenderElement_(GameRenderCommands* commands, RenderEntryType type, uin
 }
 
 // p0 p1 p2 p3 in clock wise order
-void PushQuad(GameRenderCommands* gameRenderCommands, TransformData* transformData, int texture,
+void PushQuad(GameRenderCommands* gameRenderCommands, TransformData* transformData, LoadedBitmap* bitmap,
 													glm::vec3 p0, glm::vec2 uv0, glm::vec4 color0,
 												    glm::vec3 p1, glm::vec2 uv1, glm::vec4 color1,
 													glm::vec3 p2, glm::vec2 uv2, glm::vec4 color2,
@@ -114,9 +127,19 @@ void PushQuad(GameRenderCommands* gameRenderCommands, TransformData* transformDa
 	RenderEntryTexturedQuads* entry = PushRenderElement(gameRenderCommands, TexturedQuads);
 
 	entry->masterVertexArrayOffset = gameRenderCommands->numVertex;
+	entry->masterBitmapArrayOffset = gameRenderCommands->numBitmaps;
 	entry->numQuads = 1;
 
-	TexturedVertex* vertexArray = &(gameRenderCommands->masterVertexArray[gameRenderCommands->numVertex]);
+	// cout << "gameRenderCommands->numBitmaps " << gameRenderCommands->numBitmaps << endl;
+	// cout << "gameRenderCommands->maxBitmaps " << gameRenderCommands->maxNumBitmaps << endl;
+	
+	assert(gameRenderCommands->numBitmaps < gameRenderCommands->maxNumBitmaps);
+	int index = gameRenderCommands->numBitmaps;
+	gameRenderCommands->masterBitmapArray[index] = bitmap;
+	gameRenderCommands->numBitmaps++;
+
+	int index2 = gameRenderCommands->numVertex;
+	TexturedVertex* vertexArray = &(gameRenderCommands->masterVertexArray[index2]);
 	vertexArray[0].position = p0;
 	vertexArray[0].normal = p0;
 	vertexArray[0].uv = uv0;
@@ -142,7 +165,7 @@ void PushQuad(GameRenderCommands* gameRenderCommands, TransformData* transformDa
 	gameRenderCommands->numVertex += 4;
 }
 
-void PushCube(GameRenderCommands* gameRenderCommands, TransformData* transformData, glm::vec3 entityPosition, glm::vec3 dim)
+void PushCube(GameRenderCommands* gameRenderCommands, LoadedBitmap* bitmap, TransformData* transformData, glm::vec3 entityPosition, glm::vec3 dim)
 {
 	// RenderEntryCube* cube = PushRenderElement(gameRenderCommands, RenderEntryCube);
 
@@ -190,48 +213,48 @@ void PushCube(GameRenderCommands* gameRenderCommands, TransformData* transformDa
 	glm::vec2 t2 = glm::vec2(0, 1);
 	glm::vec2 t3 = glm::vec2(1, 1);
 
-	glm::vec4 c0 = glm::vec4(1, 0, 0, 1);
-	glm::vec4 c1 = glm::vec4(0, 1, 0, 1);
-	glm::vec4 c2 = glm::vec4(0, 0, 1, 1);
-	glm::vec4 c3 = glm::vec4(1, 1, 1, 1);
+	glm::vec4 c0 = COLOR_WHITE;
+	glm::vec4 c1 = COLOR_WHITE;
+	glm::vec4 c2 = COLOR_WHITE;
+	glm::vec4 c3 = COLOR_WHITE;
 
 	// front
-	PushQuad(gameRenderCommands, transformData, 0,	p0, t0, c0,
-													p1, t1, c1,
-													p3, t3, c3,
-													p2, t2, c2);
+	PushQuad(gameRenderCommands, transformData, bitmap,	p0, t0, c0,
+														p1, t1, c1,
+														p3, t3, c3,
+														p2, t2, c2);
 	// top
-	PushQuad(gameRenderCommands, transformData, 0,	p4, t0, c0,
-													p5, t1, c1,
-													p1, t3, c3,
-													p0, t2, c2);
+	PushQuad(gameRenderCommands, transformData, bitmap,	p4, t0, c0,
+														p5, t1, c1,
+														p1, t3, c3,
+														p0, t2, c2);
 	// left 
-	PushQuad(gameRenderCommands, transformData, 0,	p4, t0, c0,
-													p0, t1, c1,
-													p2, t3, c3,
-													p6, t2, c2);
+	PushQuad(gameRenderCommands, transformData, bitmap,	p4, t0, c0,
+														p0, t1, c1,
+														p2, t3, c3,
+														p6, t2, c2);
 	// bottom
-	PushQuad(gameRenderCommands, transformData, 0,	p2, t0, c0,
-													p3, t1, c1,
-													p7, t3, c3,
-													p6, t2, c2);
+	PushQuad(gameRenderCommands, transformData, bitmap,	p2, t0, c0,
+														p3, t1, c1,
+														p7, t3, c3,
+														p6, t2, c2);
 	// right 
-	PushQuad(gameRenderCommands, transformData, 0,	p1, t0, c0,
-													p5, t1, c1,
-													p7, t3, c3,
-													p3, t2, c2);
+	PushQuad(gameRenderCommands, transformData, bitmap,	p1, t0, c0,
+														p5, t1, c1,
+														p7, t3, c3,
+														p3, t2, c2);
 	// back
-	PushQuad(gameRenderCommands, transformData, 0,	p5, t0, c0,
-													p4, t1, c1,
-													p6, t3, c3,
-													p7, t2, c2);
-}
+	PushQuad(gameRenderCommands, transformData, bitmap,	p5, t0, c0,
+														p4, t1, c1,
+														p6, t3, c3,
+														p7, t2, c2);
+}	
 
 
 
 
 // xyz coordinate system
-void PushCoordinateSystem(GameRenderCommands* gameRenderCommands, TransformData* transformData, glm::vec3 origin, glm::vec3 dim)
+void PushCoordinateSystem(GameRenderCommands* gameRenderCommands, LoadedBitmap* bitmap, TransformData* transformData, glm::vec3 origin, glm::vec3 dim)
 {
 	glm::vec3 xAxisEnd = origin + dim.x * glm::vec3(1, 0, 0);		glm::vec4 xAxisColor = glm::vec4(1, 0, 0, 1);
 	glm::vec3 yAxisEnd = origin + dim.y * glm::vec3(0, 1, 0);		glm::vec4 yAxisColor = glm::vec4(0, 1, 0, 1);
@@ -240,7 +263,14 @@ void PushCoordinateSystem(GameRenderCommands* gameRenderCommands, TransformData*
 	RenderEntryColoredLines* entry = PushRenderElement(gameRenderCommands, ColoredLines);
 
 	entry->masterVertexArrayOffset = gameRenderCommands->numVertex;
-	entry->numLines = 6;
+	entry->masterBitmapArrayOffset = gameRenderCommands->numBitmaps;
+	entry->numLinePoints = 6;
+
+	assert(gameRenderCommands->numBitmaps < gameRenderCommands->maxNumBitmaps);
+	int index = gameRenderCommands->numBitmaps;
+	gameRenderCommands->masterBitmapArray[index] = bitmap;
+	gameRenderCommands->numBitmaps++;
+
 
 	TexturedVertex* vertexArray = &(gameRenderCommands->masterVertexArray[gameRenderCommands->numVertex]);
 	vertexArray[0].position = origin;
@@ -363,7 +393,10 @@ glm::mat4 GetCameraMatrix(const glm::vec3 & eye, const glm::vec3 & center, const
 
 
 
-void WorldTickAndRender(GameState* gameState, GameInputState* gameInputState, GameRenderCommands* gameRenderCommands, glm::ivec2 windowDimensions, bool isDebugMode)
+
+
+void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets, 
+						GameInputState* gameInputState, GameRenderCommands* gameRenderCommands, glm::ivec2 windowDimensions, bool isDebugMode)
 {
 	float angleXInDeg = 0;
 	float angleYInDeg = 0;
@@ -505,11 +538,15 @@ void WorldTickAndRender(GameState* gameState, GameInputState* gameInputState, Ga
 	{
 		Entity* entity = &gameState->entities[i];
 
-		PushCube(gameRenderCommands, &transformData, entity->pos, glm::vec3(1, 1, 1));
+		BitmapId bitmapID = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Wall);
+		LoadedBitmap* bitmap = GetBitmap(gameAssets, bitmapID);
+		PushCube(gameRenderCommands, bitmap, &transformData, entity->pos, glm::vec3(1, 1, 1));
 	}
 
 	float scale = 200;
-	PushCoordinateSystem(gameRenderCommands, &transformData, glm::vec3(0, 0, 0), glm::vec3(scale, scale, scale));
+	BitmapId bitmapID = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Default);
+	LoadedBitmap* bitmap = GetBitmap(gameAssets, bitmapID);
+	PushCoordinateSystem(gameRenderCommands, bitmap, &transformData, glm::vec3(0, 0, 0), glm::vec3(scale, scale, scale));
 
 }
 
@@ -547,7 +584,7 @@ extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, Ga
 	if (!gameState->isInitalized)
 	{
 		// intialize memory arena
-
+		platformAPI = gameMemory->platformAPI;
 
 
 		// initlaize the game state  
@@ -567,19 +604,27 @@ extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, Ga
 		
 		gameState->mouseIsDebugMode = false;
 		gameState->isInitalized = true;
+
+
+		// CallOpenGL To Load Textures
 	}
 
-	WorldTickAndRender(gameState, gameInputState, gameRenderCommands, windowDimensions, isDebugMode);
+	TransientState* transientState = (TransientState*)gameMemory->transientStorage;
+	if (!transientState->isInitalized)
+	{
+		// change this to be allocated from the memory arena
+		transientState->assets = new GameAssets();
+		AllocateGameAssets(transientState->assets);
+
+		transientState->isInitalized = true;
+	}
+
+	WorldTickAndRender(gameState, transientState->assets, gameInputState, gameRenderCommands, windowDimensions, isDebugMode);
 
 
 	// render bitmaps
 
 }
 
-
-extern "C" __declspec(dllexport) void test1()
-{
-
-}
 
 
