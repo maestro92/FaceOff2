@@ -18,8 +18,8 @@
 bool debugMode;
 bool is_game_running;
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
+// #define STB_TRUETYPE_IMPLEMENTATION
+// #include "stb_truetype.h"
 
 
 

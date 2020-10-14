@@ -9,24 +9,15 @@ right click on the project and choose "properties"
 
 Configuration Properties -> C/C++ -> General
 Additional Include Directories:
-./;libraries\RakNet;glm;gui;gui\custom_gui;camera;model;model\builtin_model;renderer;utility;network;collision_detection;world_object;world_object\weapon;world_object\terrain;world_object\particle_effect;libraries\assimp\include;libraries\freetype;libraries\freetype\freetype;libraries\glew\include;libraries\SDL\include;libraries\SDL_image\include;libraries\json_spirit;C:\Users\mliu\Desktop\boost_1_66_0;C:\Program Files %28x86%29\OpenAL 1.1 SDK\include
-
+./;glm;include/SDL2;include/SDL2_image
 
 Configuration Properties -> Linker -> General
 Additional Library Directories
-libraries\glew\lib;libraries\freetype\lib;libraries\assimp\lib;libraries\SDL\lib;libraries\SDL_image\lib\x86;C:\Program Files %28x86%29\OpenAL 1.1 SDK\libs\Win32;%(AdditionalLibraryDirectories)
-
+lib\SDL2;lib\SDL2_image\x86;%(AdditionalLibraryDirectories)
 
 Configuration Properties -> Linker -> Input
 Additional Dependencies:	
-opengl32.lib;glu32.lib;glew32.lib;SDL.lib;SDLmain.lib;SDL_image.lib;ws2_32.lib;freetype.lib;assimp.lib;
-
-
-- if you need boost, the link is below
-http://www.boost.org/users/history/version_1_55_0.html
-
-- if you need to download OpenAL
-https://www.openal.org/downloads/
+opengl32.lib;glu32.lib;ws2_32.lib;SDL2.lib;SDL2_image.lib
 
 
 - if you see the following error 

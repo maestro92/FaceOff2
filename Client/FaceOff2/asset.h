@@ -1,7 +1,8 @@
 #pragma once
 #include "../PlatformShared/platform_shared.h"
 
-
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
 
 /*
 handmade hero style asset system
@@ -37,15 +38,29 @@ these master arrays contains all the data.
 
 */
 
-enum AssetFamilyType
+namespace AssetDataFormatType
 {
-	None,
-	Default,
-	Font,
-	Wall,
-	NUM_ASSET_FAMILY,
-};
+	enum Enum
+	{
+		Bitmap,
+		Sound,
+		Font,
+		FontGlyph
+	};
+}
 
+namespace AssetFamilyType
+{
+	enum Enum
+	{
+		None,
+		Default,
+		Font,
+		FontGlyph,
+		Wall,
+		NUM_ASSET_FAMILY,
+	};
+}
 extern PlatformAPI platformAPI;
 
 struct BitmapId
@@ -76,6 +91,10 @@ struct AssetBitmapInfo
 	char* filename;
 };
 
+struct AssetFontInfo
+{
+	char* filename;
+};
 
 struct AssetFamily
 {
@@ -89,6 +108,23 @@ struct AssetTag
 	float value;
 };
 
+
+struct LoadedFont
+{
+	char* filename;
+	int maxGlyphs;
+	int numGlyphs;
+	BitmapId* glyphs;
+	float horizontalAdvance;
+	uint16* unicodeMap;
+};
+
+struct LoadedGlyph
+{
+	char c;
+	LoadedBitmap bitmap;
+};
+
 // contains meta data about the asset 
 struct AssetHandle
 {
@@ -96,20 +132,12 @@ struct AssetHandle
 	uint32 startTagIndex;
 	uint32 onePastLastTagIndex;
 
-	// not sure if i want to mix in game stuff with asset structure stuff
-	AssetState state;
-	LoadedBitmap* loadedBitmap;
-
-	// Either bitmapId, or soundId or fontId
-
-	// uint32 assetId;
 
 	union 
 	{
-		BitmapId bitmapId;
-		SoundId soundId;
-		FontId fontId;
-	} assetId;
+		AssetBitmapInfo bitmapInfo;
+		AssetFontInfo fontInfo;
+	};
 
 	// or int AssetIndex?
 };
@@ -119,8 +147,15 @@ struct AssetHandle
 // This is the handmade hero assetAlot class
 struct Asset
 {
+	AssetDataFormatType::Enum type;
 	AssetState state;
-	LoadedBitmap loadedBitmap;
+
+	union
+	{
+		LoadedBitmap loadedBitmap;
+		LoadedFont loadedFont;
+		LoadedGlyph loadedGlyph;
+	};
 };
 
 
@@ -132,71 +167,40 @@ struct GameAssets
 	uint32 numAssetHandles;
 	AssetHandle* masterAssetHandleTable;
 
-	uint32 maxBitmaps;
-	uint32 numBitmaps;
-	AssetBitmapInfo* bitmapInfos;
-	Asset* bitmaps;
-	// Asset* fonts
-	// Asset* sounds;
+	// Asset handle doesnt have a 
+	uint32 maxAssets;
+	uint32 numAssets;
+	Asset* assets;
 
 	uint32 numMasterTags;
 	AssetTag* masterTagTable;
 
 	// These are mostly used when writing in assets
-	AssetFamily* currentAssetFamilyType = nullptr;
+	AssetFamily* currentEditedAssetFamily = nullptr;
 //	uint32 currentNumAssetHandle;		do you need this guy
 };
 
-void BeginAssetFamily(GameAssets* ga, AssetFamilyType type)
+void BeginAssetFamily(GameAssets* ga, AssetFamilyType::Enum type)
 {
-	assert(!ga->currentAssetFamilyType);
-	ga->currentAssetFamilyType = &ga->masterAssetFamilyTable[(int)type];
+	assert(!ga->currentEditedAssetFamily);
+	ga->currentEditedAssetFamily = &ga->masterAssetFamilyTable[(int)type];
 
-	AssetFamily* family = ga->currentAssetFamilyType;
+	AssetFamily* family = ga->currentEditedAssetFamily;
 	family->startAssetIndex = ga->numAssetHandles;   // does this work?
 	family->onePastLastAssetIndex = family->startAssetIndex;
-
-}
-
-BitmapId AddBitmapInfo(GameAssets* ga, char* filename)
-{
-	assert(ga->numBitmaps < ga->maxBitmaps);
-	BitmapId id = { ga->numBitmaps++ };
-
-	AssetBitmapInfo* info = &ga->bitmapInfos[id.value];
-	info->filename = filename;
-	return id;
-}
-
-void AddBitmapAsset(GameAssets* ga, char* filename)
-{
-	assert(ga->currentAssetFamilyType);
-	int index = ga->currentAssetFamilyType->onePastLastAssetIndex;
-
-	// std::cout << "index " << index << std::endl;
-
-	AssetHandle* handle = &ga->masterAssetHandleTable[index];
-	ga->currentAssetFamilyType->onePastLastAssetIndex++;
-	
-	handle->startTagIndex = 0;
-	handle->onePastLastTagIndex = 0;
-	
-	handle->assetId.bitmapId = AddBitmapInfo(ga, filename);
-	ga->numAssetHandles++;
-//	std::cout << "handle->assetId.bitmapId " << handle->assetId.bitmapId.value << std::endl;
 }
 
 void EndAssetFamily(GameAssets* ga)
 {
 //	std::cout << "onePastLastAssetIndex " << ga->currentAssetFamilyType->onePastLastAssetIndex << std::endl;
 
-	assert(ga->currentAssetFamilyType);
-	ga->currentAssetFamilyType = nullptr;
+	assert(ga->currentEditedAssetFamily);
+	ga->currentEditedAssetFamily = nullptr;
 
 	
 }
 
-uint32 GetFirstAssetIdFrom(GameAssets* Assets, AssetFamilyType familyType)
+uint32 GetFirstAssetIdFrom(GameAssets* Assets, AssetFamilyType::Enum familyType)
 {
 	uint32 Result = 0;
 
@@ -209,24 +213,69 @@ uint32 GetFirstAssetIdFrom(GameAssets* Assets, AssetFamilyType familyType)
 	return(Result);
 }
 
-BitmapId GetFirstBitmapIdFrom(GameAssets* assets, AssetFamilyType familyType)
+BitmapId GetFirstBitmapIdFrom(GameAssets* ga, AssetFamilyType::Enum familyType)
 {
-	BitmapId result = { GetFirstAssetIdFrom(assets, familyType) };
+	BitmapId result = { GetFirstAssetIdFrom(ga, familyType) };
 	return(result);
 }
 
-LoadedBitmap* GetBitmap(GameAssets* assets, BitmapId id)
+BitmapId GetBitmapForGlyph(GameAssets* ga, LoadedFont *font, uint32 desiredCodePoint)
 {
-	LoadedBitmap* result = &assets->bitmaps[id.value].loadedBitmap;
+	BitmapId result = font->glyphs[10];	
+	return(result);
+}
+
+
+LoadedBitmap* GetBitmap(GameAssets* ga, BitmapId id)
+{
+	LoadedBitmap* result = &ga->assets[id.value].loadedBitmap;
 	return result;
 }
 
-void AssetSystemLoadBitmap(GameAssets* ga, BitmapId id)
+LoadedFont* GetFont(GameAssets* ga, FontId id)
 {
-	AssetBitmapInfo* info = &ga->bitmapInfos[id.value];
+	LoadedFont* result = &ga->assets[id.value].loadedFont;
+	return result;
+}
+
+
+LoadedBitmap CreateEmptyBitmap(uint32 width, uint32 height, bool clearToZero)
+{
+	LoadedBitmap result = {};
+
+	//	Result.AlignPercentage = V2(0.5f, 0.5f);
+	//	Result.WidthOverHeight = SafeRatio1((r32)Width, (r32)Height);
+
+	result.width = width;
+	result.height = height;
+	result.pitch = result.width * 4;
+	int32 totalBitmapSize = result.pitch * height;
+	result.memory = malloc(totalBitmapSize);
+
+	return result;
+}
+
+// 
+LoadedFont CreateEmptyLoadedFont(char* filename)
+{
+	LoadedFont loadedFont = {};
+	loadedFont.maxGlyphs = 256;
+	loadedFont.numGlyphs = 0;
+	loadedFont.filename = "c:/Windows/Fonts/arial.ttf";
+	loadedFont.glyphs = new BitmapId[loadedFont.maxGlyphs];
+	loadedFont.horizontalAdvance = 10;
+
+	return loadedFont;
+}
+
+void LoadBitmapToMemory(GameAssets* ga, BitmapId id)
+{
+	AssetHandle* handle = &ga->masterAssetHandleTable[id.value];
+
+	AssetBitmapInfo* info = &handle->bitmapInfo;
 	BitmapInfo bitmap = platformAPI.readImageFile(info->filename);
 
-	Asset* asset = &ga->bitmaps[id.value];
+	Asset* asset = &ga->assets[id.value];
 	asset->state = AssetState::Unloaded;
 
 	LoadedBitmap result = {};
@@ -240,17 +289,152 @@ void AssetSystemLoadBitmap(GameAssets* ga, BitmapId id)
 	asset->loadedBitmap = result;
 }
 
+void LoadGlyphBitmapToMemory(GameAssets* ga, LoadedFont* loadedFont, BitmapId id)
+{
+	AssetHandle* handle = &ga->masterAssetHandleTable[id.value];
+
+	Asset* asset = &ga->assets[id.value];
+	asset->state = AssetState::Unloaded;
+
+	char c = asset->loadedGlyph.c;
+
+
+	unsigned char* fileContent = 0;
+	int fileSize = 0;
+
+	FILE *ptr;
+
+//	ptr = fopen("c:/Windows/Fonts/arial.ttf", "rb");  // r for read, b for binary
+	ptr = fopen(loadedFont->filename, "rb");
+	fseek(ptr, 0L, SEEK_END);
+	fileSize = ftell(ptr);
+	fseek(ptr, 0L, SEEK_SET);
+
+	fileContent = (unsigned char*)VirtualAlloc(0, (size_t)fileSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+	fread(fileContent, sizeof(uint8), fileSize, ptr); // read 10 bytes to our buffer
+
+	int width, height, xOffset, yOffset;
+
+	stbtt_fontinfo font;
+	stbtt_InitFont(&font, fileContent, stbtt_GetFontOffsetForIndex(fileContent, 0));
+	unsigned char*  monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, 20), c, &width, &height, &xOffset, &yOffset);
+	uint8* src = monoBitmap;
+
+	// 4 bytes per pixel
+	LoadedBitmap result = CreateEmptyBitmap(width, height, false);
+	result.width = width;
+	result.height = height;
+	result.memory = VirtualAlloc(0, (size_t)width * height * 4, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+	uint32* dst = (uint32*)result.memory;
+
+	for (int y = 0; y < height; y++)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			uint8 alpha = *src++;
+			*dst++ = (alpha << 24) | (alpha << 16) | (alpha << 8) | (alpha << 0);
+		}
+	}
+
+	stbtt_FreeBitmap(monoBitmap, 0);
+
+
+	void* textureHandle = platformAPI.allocateTexture(result.width, result.height, result.memory);
+	result.textureHandle = POINTER_TO_UINT32(textureHandle);
+	std::cout << "texture handle " << result.textureHandle << std::endl;
+	asset->loadedGlyph.bitmap = result;
+}
+
+
+
+
+
+// This is just used so that I can return two things
+struct AddedAsset
+{
+	uint32 id;  // index of the handle in the master handle array 
+				// also the index of data inside the master data array
+	AssetHandle* handle;
+	Asset* data;
+};
+
+AddedAsset AddBaseAsset(GameAssets* ga)
+{
+	assert(ga->currentEditedAssetFamily);
+	int index = ga->currentEditedAssetFamily->onePastLastAssetIndex++;
+
+	// add a new handle and a source
+	AssetHandle* handle = &ga->masterAssetHandleTable[index];
+	Asset* data = &ga->assets[index];
+
+	ga->numAssetHandles++;
+	ga->numAssets++;
+
+	handle->startTagIndex = 0;
+	handle->onePastLastTagIndex = 0;
+	
+	AddedAsset addedAsset = {};
+	addedAsset.id = index;
+	addedAsset.handle = handle;
+	addedAsset.data = data;
+	return addedAsset;
+}
+
+void AddBitmapAsset(GameAssets* ga, char* filename)
+{
+	assert(ga->currentEditedAssetFamily);
+	AddedAsset newAssetInfo = AddBaseAsset(ga);
+
+	newAssetInfo.handle->bitmapInfo.filename = filename;
+	newAssetInfo.data->type = AssetDataFormatType::Bitmap;
+
+}
+
+void AddCharacterAsset(GameAssets* ga, LoadedFont* fontAssetInfo, char c)
+{
+	assert(ga->currentEditedAssetFamily);
+	AddedAsset newAssetInfo = AddBaseAsset(ga);
+
+	newAssetInfo.data->type = AssetDataFormatType::FontGlyph;
+	int glyphIndex = fontAssetInfo->numGlyphs;
+	fontAssetInfo->glyphs[glyphIndex] = { newAssetInfo.id };
+	fontAssetInfo->numGlyphs++;
+
+	newAssetInfo.data->loadedGlyph.c = c;
+}
+
+void AddFontAsset(GameAssets* ga, LoadedFont* fontAssetInfo)
+{
+	assert(ga->currentEditedAssetFamily);
+	AddedAsset newAssetInfo = AddBaseAsset(ga);
+
+	newAssetInfo.data->type = AssetDataFormatType::Font;
+
+
+	
+	LoadedFont font = {};
+	font.numGlyphs = fontAssetInfo->numGlyphs;
+	font.horizontalAdvance = fontAssetInfo->horizontalAdvance;
+
+	int size = font.numGlyphs * sizeof(BitmapId);
+	font.glyphs = (BitmapId*)malloc(size);
+	memcpy((void*)font.glyphs, (void*)fontAssetInfo->glyphs, size);
+
+	newAssetInfo.data->loadedFont = font;
+}
+
 
 void AllocateGameAssets(GameAssets* ga)
 {
 	// replace this with pushing it to the memory arena.
-	ga->maxBitmaps = 256;
-	ga->numBitmaps = 0;
-	ga->bitmapInfos = new AssetBitmapInfo[ga->maxBitmaps];
-	ga->bitmaps = new Asset[ga->maxBitmaps];
+	ga->maxAssets = 256;
+	ga->numAssets = 0;
+	ga->assets = new Asset[ga->maxAssets];
 
 	// the 0th handle is just the null asset.
-	ga->maxAssetHandles = ga->maxBitmaps;
+	ga->maxAssetHandles = ga->maxAssets;
 	ga->numAssetHandles = 0;
 	ga->masterAssetHandleTable = new AssetHandle[ga->maxAssetHandles];
 
@@ -270,16 +454,53 @@ void AllocateGameAssets(GameAssets* ga)
 	AddBitmapAsset(ga, "./Assets/wall1.bmp");
 	EndAssetFamily(ga);
 
-	std::cout << "numBitmaps2 " << ga->numBitmaps << std::endl;
-	std::cout << "maxBitmaps2 " << ga->maxBitmaps << std::endl;
+	LoadedFont loadedFont = CreateEmptyLoadedFont("c:/Windows/Fonts/arial.ttf");
+	
+	BeginAssetFamily(ga, AssetFamilyType::FontGlyph);
+	for (int i = 'a'; i <= 'z'; i++)
+	{
+		AddCharacterAsset(ga, &loadedFont, i);
+	}
+
+	for (int i = 'A'; i <= 'Z'; i++)
+	{
+		AddCharacterAsset(ga, &loadedFont, i);
+	}
+	EndAssetFamily(ga);
+
+	BeginAssetFamily(ga, AssetFamilyType::Font);
+	AddFontAsset(ga, &loadedFont);
+	EndAssetFamily(ga);
+
+
+	// Load all assets into memory
 
 	// texture 0
-	for (int i = 0; i < ga->numBitmaps; i++)
+	for (int i = 0; i < ga->numAssets; i++)
 	{
-		BitmapId bitmapId = ga->masterAssetHandleTable[i].assetId.bitmapId;
-		// std::cout << bitmapId.value << std::endl;
-		AssetSystemLoadBitmap(ga, bitmapId);
+		Asset* asset = &ga->assets[i];
+
+		if (asset->type == AssetDataFormatType::Bitmap)
+		{
+			BitmapId bitmapId = { i };
+			// std::cout << bitmapId.value << std::endl;
+			LoadBitmapToMemory(ga, bitmapId);
+		}
+		else if (asset->type == AssetDataFormatType::Font)
+		{
+			// we already have one
+			//	LoadFontToMemory(ga, bitmapId);
+		}
+		else if (asset->type == AssetDataFormatType::FontGlyph)
+		{
+			BitmapId bitmapId = { i };
+			// std::cout << bitmapId.value << std::endl;
+			LoadGlyphBitmapToMemory(ga, &loadedFont, bitmapId);
+		}
+
 	}
+
+
 }
 
 

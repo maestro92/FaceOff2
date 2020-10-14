@@ -169,11 +169,13 @@ struct LoadedBitmap
 	void* memory;
 	int width;
 	int height;
-
+	int pitch;
 	// This is the OpenGL texture handle 
 	// cant use GLuint since this is the platform layer
 	uint32 textureHandle;
 };
+
+
 
 struct GameRenderCommands
 {

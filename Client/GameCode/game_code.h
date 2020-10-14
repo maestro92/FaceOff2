@@ -22,6 +22,9 @@ glm::vec4 COLOR_WHITE = glm::vec4(1, 1, 1, 1);
 
 static PlatformAPI platformAPI;
 
+static FontId debugFontId;
+static LoadedFont* debugLoadedFont;
+
 struct CameraEntity
 {
 	// consider storing these 4 as a matrix?
@@ -393,8 +396,6 @@ glm::mat4 GetCameraMatrix(const glm::vec3 & eye, const glm::vec3 & center, const
 
 
 
-
-
 void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets, 
 						GameInputState* gameInputState, GameRenderCommands* gameRenderCommands, glm::ivec2 windowDimensions, bool isDebugMode)
 {
@@ -538,7 +539,10 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 	{
 		Entity* entity = &gameState->entities[i];
 
-		BitmapId bitmapID = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Wall);
+//		BitmapId bitmapID = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Wall);
+
+
+		BitmapId bitmapID = GetBitmapForGlyph(gameAssets, debugLoadedFont, 'c');
 		LoadedBitmap* bitmap = GetBitmap(gameAssets, bitmapID);
 		PushCube(gameRenderCommands, bitmap, &transformData, entity->pos, glm::vec3(1, 1, 1));
 	}
@@ -615,6 +619,9 @@ extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, Ga
 		// change this to be allocated from the memory arena
 		transientState->assets = new GameAssets();
 		AllocateGameAssets(transientState->assets);
+
+		debugFontId = { GetFirstAssetIdFrom(transientState->assets, AssetFamilyType::Enum::Font) };
+		debugLoadedFont = GetFont(transientState->assets, debugFontId);
 
 		transientState->isInitalized = true;
 	}
