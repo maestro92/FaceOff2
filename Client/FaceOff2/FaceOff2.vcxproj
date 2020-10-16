@@ -97,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="asset.h" />
+    <ClInclude Include="memory.h" />
     <ClInclude Include="sdl_faceoff_opengl.h" />
     <ClInclude Include="stb_truetype.h" />
     <ClInclude Include="test_asset_builder.h" />

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "../PlatformShared/platform_shared.h"
+#include "memory.h"
 #include "../FaceOff2/asset.h"
+
 
 #include <iostream>
 
@@ -11,10 +13,6 @@
 
 using namespace std;
 
-/*
-#define PushStruct(Arena, type) (type*)PushSize
-#define PushArray(Arena, count, type)
-*/
 
 // typedef void(*PlatformLoadTexture)(GameAssets* gameAssets, BitmapId bitmapId);
 
@@ -61,14 +59,7 @@ struct Entity
 	glm::vec3 pos;
 };
 
-/*
-struct memory_arena
-{
-	uint8* base;
-	MemoryIndex size;
-	MemoryIndex used;
-};
-*/
+
 
 
 
@@ -83,12 +74,16 @@ struct GameState
 	CameraEntity camera;
 
 	bool mouseIsDebugMode;
+
+	MemoryArena memoryArena;
 };
 
 struct TransientState
 {
 	bool isInitalized;
+	MemoryArena memoryArena;
 	GameAssets* assets;
+
 };
 
 
@@ -539,9 +534,6 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 	{
 		Entity* entity = &gameState->entities[i];
 
-//		BitmapId bitmapID = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Wall);
-
-
 		BitmapId bitmapID = GetBitmapForGlyph(gameAssets, debugLoadedFont, 'c');
 		LoadedBitmap* bitmap = GetBitmap(gameAssets, bitmapID);
 		PushCube(gameRenderCommands, bitmap, &transformData, entity->pos, glm::vec3(1, 1, 1));
@@ -607,6 +599,12 @@ extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, Ga
 		gameState->camera.zAxis = glm::vec3(0.0, 0.0, 1.0);
 		
 		gameState->mouseIsDebugMode = false;
+
+
+		uint8* base = (uint8*) gameMemory->permenentStorage + sizeof(GameState);
+		MemoryIndex size = gameMemory->permenentStorageSize - sizeof(GameState);
+		gameState->memoryArena.Init(base, size);
+
 		gameState->isInitalized = true;
 
 
@@ -616,12 +614,17 @@ extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, Ga
 	TransientState* transientState = (TransientState*)gameMemory->transientStorage;
 	if (!transientState->isInitalized)
 	{
-		// change this to be allocated from the memory arena
-		transientState->assets = new GameAssets();
-		AllocateGameAssets(transientState->assets);
+		uint8* base = (uint8*)gameMemory->transientStorage + sizeof(TransientState);
+		MemoryIndex size = gameMemory->transientStorageSize - sizeof(TransientState);
+		transientState->memoryArena.Init(base, size);
+	
+		transientState->assets = PushStruct(&transientState->memoryArena, GameAssets);
+		AllocateGameAssets(&transientState->memoryArena, transientState->assets, transientState->assets);
 
 		debugFontId = { GetFirstAssetIdFrom(transientState->assets, AssetFamilyType::Enum::Font) };
 		debugLoadedFont = GetFont(transientState->assets, debugFontId);
+
+
 
 		transientState->isInitalized = true;
 	}

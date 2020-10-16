@@ -1,5 +1,6 @@
 #pragma once
 #include "../PlatformShared/platform_shared.h"
+#include "memory.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -180,6 +181,19 @@ struct GameAssets
 //	uint32 currentNumAssetHandle;		do you need this guy
 };
 
+
+
+void BeginAssetFamily(GameAssets* ga, AssetFamilyType::Enum type, GameAssets* & gameAssets)
+{
+	assert(!ga->currentEditedAssetFamily);
+	ga->currentEditedAssetFamily = &ga->masterAssetFamilyTable[(int)type];
+
+	AssetFamily* family = ga->currentEditedAssetFamily;
+	family->startAssetIndex = ga->numAssetHandles;   // does this work?
+	family->onePastLastAssetIndex = family->startAssetIndex;
+}
+
+
 void BeginAssetFamily(GameAssets* ga, AssetFamilyType::Enum type)
 {
 	assert(!ga->currentEditedAssetFamily);
@@ -239,7 +253,7 @@ LoadedFont* GetFont(GameAssets* ga, FontId id)
 }
 
 
-LoadedBitmap CreateEmptyBitmap(uint32 width, uint32 height, bool clearToZero)
+LoadedBitmap CreateEmptyBitmap(MemoryArena* memoryArena, uint32 width, uint32 height, bool clearToZero)
 {
 	LoadedBitmap result = {};
 
@@ -250,19 +264,20 @@ LoadedBitmap CreateEmptyBitmap(uint32 width, uint32 height, bool clearToZero)
 	result.height = height;
 	result.pitch = result.width * 4;
 	int32 totalBitmapSize = result.pitch * height;
-	result.memory = malloc(totalBitmapSize);
+	result.memory = PushSize(memoryArena, totalBitmapSize);
 
 	return result;
 }
 
 // 
-LoadedFont CreateEmptyLoadedFont(char* filename)
+LoadedFont CreateEmptyLoadedFont(MemoryArena* memoryArena, char* filename)
 {
 	LoadedFont loadedFont = {};
 	loadedFont.maxGlyphs = 256;
 	loadedFont.numGlyphs = 0;
+	loadedFont.glyphs = PushArray(memoryArena, loadedFont.maxGlyphs, BitmapId);
 	loadedFont.filename = "c:/Windows/Fonts/arial.ttf";
-	loadedFont.glyphs = new BitmapId[loadedFont.maxGlyphs];
+
 	loadedFont.horizontalAdvance = 10;
 
 	return loadedFont;
@@ -289,7 +304,7 @@ void LoadBitmapToMemory(GameAssets* ga, BitmapId id)
 	asset->loadedBitmap = result;
 }
 
-void LoadGlyphBitmapToMemory(GameAssets* ga, LoadedFont* loadedFont, BitmapId id)
+void LoadGlyphBitmapToMemory(MemoryArena* memoryArena, GameAssets* ga, LoadedFont* loadedFont, BitmapId id)
 {
 	AssetHandle* handle = &ga->masterAssetHandleTable[id.value];
 
@@ -322,7 +337,7 @@ void LoadGlyphBitmapToMemory(GameAssets* ga, LoadedFont* loadedFont, BitmapId id
 	uint8* src = monoBitmap;
 
 	// 4 bytes per pixel
-	LoadedBitmap result = CreateEmptyBitmap(width, height, false);
+	LoadedBitmap result = CreateEmptyBitmap(memoryArena, width, height, false);
 	result.width = width;
 	result.height = height;
 	result.memory = VirtualAlloc(0, (size_t)width * height * 4, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -426,17 +441,18 @@ void AddFontAsset(GameAssets* ga, LoadedFont* fontAssetInfo)
 }
 
 
-void AllocateGameAssets(GameAssets* ga)
+void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga, GameAssets* & gameAssets)
 {
+
 	// replace this with pushing it to the memory arena.
 	ga->maxAssets = 256;
 	ga->numAssets = 0;
-	ga->assets = new Asset[ga->maxAssets];
+	ga->assets = PushArray(memoryArena, ga->maxAssets, Asset);
 
 	// the 0th handle is just the null asset.
 	ga->maxAssetHandles = ga->maxAssets;
 	ga->numAssetHandles = 0;
-	ga->masterAssetHandleTable = new AssetHandle[ga->maxAssetHandles];
+	ga->masterAssetHandleTable = PushArray(memoryArena, ga->maxAssetHandles, AssetHandle);
 
 	ga->numMasterTags = 0;
 
@@ -449,12 +465,12 @@ void AllocateGameAssets(GameAssets* ga)
 	AddBitmapAsset(ga, "./Assets/white.bmp");
 	EndAssetFamily(ga);
 
-	BeginAssetFamily(ga, AssetFamilyType::Wall);
+	BeginAssetFamily(ga, AssetFamilyType::Wall, gameAssets);
 	AddBitmapAsset(ga, "./Assets/wall2.bmp");
 	AddBitmapAsset(ga, "./Assets/wall1.bmp");
 	EndAssetFamily(ga);
 
-	LoadedFont loadedFont = CreateEmptyLoadedFont("c:/Windows/Fonts/arial.ttf");
+	LoadedFont loadedFont = CreateEmptyLoadedFont(memoryArena, "c:/Windows/Fonts/arial.ttf");
 	
 	BeginAssetFamily(ga, AssetFamilyType::FontGlyph);
 	for (int i = 'a'; i <= 'z'; i++)
@@ -495,12 +511,9 @@ void AllocateGameAssets(GameAssets* ga)
 		{
 			BitmapId bitmapId = { i };
 			// std::cout << bitmapId.value << std::endl;
-			LoadGlyphBitmapToMemory(ga, &loadedFont, bitmapId);
+			LoadGlyphBitmapToMemory(memoryArena, ga, &loadedFont, bitmapId);
 		}
-
 	}
-
-
 }
 
 
