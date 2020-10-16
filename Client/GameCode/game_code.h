@@ -619,7 +619,7 @@ extern "C" __declspec(dllexport) void UpdateAndRender(GameMemory* gameMemory, Ga
 		transientState->memoryArena.Init(base, size);
 	
 		transientState->assets = PushStruct(&transientState->memoryArena, GameAssets);
-		AllocateGameAssets(&transientState->memoryArena, transientState->assets, transientState->assets);
+		AllocateGameAssets(&transientState->memoryArena, transientState->assets);
 
 		debugFontId = { GetFirstAssetIdFrom(transientState->assets, AssetFamilyType::Enum::Font) };
 		debugLoadedFont = GetFont(transientState->assets, debugFontId);

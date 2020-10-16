@@ -182,18 +182,6 @@ struct GameAssets
 };
 
 
-
-void BeginAssetFamily(GameAssets* ga, AssetFamilyType::Enum type, GameAssets* & gameAssets)
-{
-	assert(!ga->currentEditedAssetFamily);
-	ga->currentEditedAssetFamily = &ga->masterAssetFamilyTable[(int)type];
-
-	AssetFamily* family = ga->currentEditedAssetFamily;
-	family->startAssetIndex = ga->numAssetHandles;   // does this work?
-	family->onePastLastAssetIndex = family->startAssetIndex;
-}
-
-
 void BeginAssetFamily(GameAssets* ga, AssetFamilyType::Enum type)
 {
 	assert(!ga->currentEditedAssetFamily);
@@ -441,7 +429,7 @@ void AddFontAsset(GameAssets* ga, LoadedFont* fontAssetInfo)
 }
 
 
-void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga, GameAssets* & gameAssets)
+void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga)
 {
 
 	// replace this with pushing it to the memory arena.
@@ -465,7 +453,7 @@ void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga, GameAssets* & 
 	AddBitmapAsset(ga, "./Assets/white.bmp");
 	EndAssetFamily(ga);
 
-	BeginAssetFamily(ga, AssetFamilyType::Wall, gameAssets);
+	BeginAssetFamily(ga, AssetFamilyType::Wall);
 	AddBitmapAsset(ga, "./Assets/wall2.bmp");
 	AddBitmapAsset(ga, "./Assets/wall1.bmp");
 	EndAssetFamily(ga);
