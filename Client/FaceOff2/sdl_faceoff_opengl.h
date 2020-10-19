@@ -529,56 +529,68 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 		commands->masterVertexArray, GL_STATIC_DRAW);
 
 
-	UseShaderProgramBegin(&openGL->generalShader, &commands->transformMatrix);
+
 
 	// gl buffer data
 
 
+	std::cout << "commands->numRenderGroups " << commands->numRenderGroups << std::endl;
 
-	for (unsigned int i = 0; i < commands->numElements; i++)
+	for (unsigned int i = 0; i < commands->numRenderGroups; i++)
 	{
+		// for ui
+		if (i == 1)
+		{
+	//		glDisable(GL_DEPTH_TEST);
+		}
+
 		RenderEntryHeader* header = (RenderEntryHeader*)curAt;
 		curAt += sizeof(RenderEntryHeader);
 
 		void* data = (uint8*)header + sizeof(*header);
 		switch (header->type)
 		{
-			case RenderEntryType_Clear:
+			case RenderGroupEntryType_Clear:
 			{
 
 
 			}
 			break;
 			
-			case RenderEntryType_TexturedQuads:
+			case RenderGroupEntryType_TexturedQuads:
 			{	
 				// Iterate 
-				curAt += sizeof(RenderEntryTexturedQuads);
-				RenderEntryTexturedQuads* entry = (RenderEntryTexturedQuads*)data;
+				curAt += sizeof(RenderGroupEntryTexturedQuads);
+				RenderGroupEntryTexturedQuads* entry = (RenderGroupEntryTexturedQuads*)data;
 
-				for (int i = 0; i < entry->numQuads; i++)
+				UseShaderProgramBegin(&openGL->generalShader, &entry->renderSetup.transformMatrix);
+
+				int currentTextureHandle = -1;
+
+		
+			//	std::cout << "entry->numQuads " << entry->numQuads << std::endl;
+				for (int j = 0; j < entry->numQuads; j++)
 				{
-					/*
 					int bitmayArrayIndex = entry->masterBitmapArrayOffset;
-					if (bitmayArrayIndex != -1)
-					{
-						LoadedBitmap* bitmap = commands->masterBitmapArray[bitmayArrayIndex];
-						glBindTexture(GL_TEXTURE_2D, (GLuint)POINTER_TO_UINT32(bitmap->textureHandle));
-					}
-					*/
-					int bitmayArrayIndex = entry->masterBitmapArrayOffset;
-					LoadedBitmap* bitmap = commands->masterBitmapArray[bitmayArrayIndex];
+					LoadedBitmap* bitmap = commands->masterBitmapArray[bitmayArrayIndex + j];
 
-					glActiveTexture2(GL_TEXTURE0);
-					glBindTexture(GL_TEXTURE_2D, (GLuint)POINTER_TO_UINT32(bitmap->textureHandle));
-					int offset = entry->masterVertexArrayOffset + i * 4;
+				//	std::cout << "bitmap->textureHandle " << bitmap->textureHandle << std::endl;
+
+					if (currentTextureHandle != (GLuint)POINTER_TO_UINT32(bitmap->textureHandle))
+					{
+						glActiveTexture2(GL_TEXTURE0);
+						glBindTexture(GL_TEXTURE_2D, (GLuint)POINTER_TO_UINT32(bitmap->textureHandle));
+						currentTextureHandle = (GLuint)POINTER_TO_UINT32(bitmap->textureHandle);
+					}
+
+					int offset = entry->masterVertexArrayOffset + j * 4;
 					glDrawArrays(GL_TRIANGLE_STRIP, offset, 4);
 				}
 
 				glBindTexture(GL_TEXTURE_2D, 0);
 			}
 			break;
-
+			/*
 			case RenderEntryType_ColoredLines:
 			{
 				// Iterate 
@@ -597,6 +609,7 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 				glDrawArrays(GL_LINES, offset, entry->numLinePoints);
 			}
 			break;
+			*/
 		}
 	}
 	UseShaderProgramEnd(&openGL->generalShader);

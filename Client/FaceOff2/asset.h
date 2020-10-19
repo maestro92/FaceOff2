@@ -116,7 +116,7 @@ struct LoadedFont
 	int maxGlyphs;
 	int numGlyphs;
 	BitmapId* glyphs;
-	float horizontalAdvance;
+	float horizontalAdvance;	// what units is this in?
 	uint16* unicodeMap;
 };
 
@@ -321,7 +321,7 @@ void LoadGlyphBitmapToMemory(MemoryArena* memoryArena, GameAssets* ga, LoadedFon
 
 	stbtt_fontinfo font;
 	stbtt_InitFont(&font, fileContent, stbtt_GetFontOffsetForIndex(fileContent, 0));
-	unsigned char*  monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, 20), c, &width, &height, &xOffset, &yOffset);
+	unsigned char*  monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, 25), c, &width, &height, &xOffset, &yOffset);
 	uint8* src = monoBitmap;
 
 	// 4 bytes per pixel
@@ -330,6 +330,8 @@ void LoadGlyphBitmapToMemory(MemoryArena* memoryArena, GameAssets* ga, LoadedFon
 	result.height = height;
 	result.memory = VirtualAlloc(0, (size_t)width * height * 4, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
+
+	// STB bitmaps are upside down
 	uint32* dst = (uint32*)result.memory;
 
 	for (int y = 0; y < height; y++)
@@ -337,7 +339,9 @@ void LoadGlyphBitmapToMemory(MemoryArena* memoryArena, GameAssets* ga, LoadedFon
 		for (int x = 0; x < width; x++)
 		{
 			uint8 alpha = *src++;
-			*dst++ = (alpha << 24) | (alpha << 16) | (alpha << 8) | (alpha << 0);
+
+			int row = height - y - 1;
+			dst[row * width + x] = (alpha << 24) | (alpha << 16) | (alpha << 8) | (alpha << 0);
 		}
 	}
 
@@ -465,11 +469,12 @@ void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga)
 	{
 		AddCharacterAsset(ga, &loadedFont, i);
 	}
-
+	
 	for (int i = 'A'; i <= 'Z'; i++)
 	{
 		AddCharacterAsset(ga, &loadedFont, i);
 	}
+	
 	EndAssetFamily(ga);
 
 	BeginAssetFamily(ga, AssetFamilyType::Font);

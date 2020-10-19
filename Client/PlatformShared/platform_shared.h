@@ -125,11 +125,10 @@ struct GameMemory
 };
 
 
-enum RenderEntryType
+enum RenderGroupEntryType
 {
-	RenderEntryType_Clear,
-	RenderEntryType_TexturedQuads,
-	RenderEntryType_ColoredLines,
+	RenderGroupEntryType_Clear,
+	RenderGroupEntryType_TexturedQuads,
 };
 
 struct RenderEntryHeader
@@ -142,19 +141,27 @@ struct RenderEntryClear
 	glm::vec4 color;
 };
 
-struct RenderEntryTexturedQuads
+struct RenderSetup
 {
+//	glm::mat4 cameraProjectionMatrix;
+//	glm::mat4 cameraTransformMatrix;
+	glm::mat4 transformMatrix;
+};
+
+struct RenderGroupEntryTexturedQuads
+{
+	RenderSetup renderSetup;
 	int numQuads;
 	int masterVertexArrayOffset;
 	int masterBitmapArrayOffset;
 };
 
-struct RenderEntryColoredLines
+// this is just for convenience
+struct RenderGroup
 {
-	int numLinePoints;
-	int masterVertexArrayOffset;
-	int masterBitmapArrayOffset;
+	RenderGroupEntryTexturedQuads* quads;
 };
+
 
 struct TexturedVertex
 {
@@ -183,7 +190,7 @@ struct GameRenderCommands
 	uint32 pushBufferSize;	
 	uint32 maxPushBufferSize;
 
-	uint32 numElements;
+	uint32 numRenderGroups;
 
 	unsigned int maxNumVertex;
 	unsigned int numVertex;
@@ -198,9 +205,6 @@ struct GameRenderCommands
 	// hack for now
 	// eventually we want to add this to a render group concept
 	// instead of per TexturedQuad.
-	glm::mat4 cameraProjectionMatrix;
-	glm::mat4 cameraTransformMatrix;
-	glm::mat4 transformMatrix;
 
 	uint8* CurrentPushBufferAt()
 	{
@@ -210,6 +214,11 @@ struct GameRenderCommands
 	bool HasSpaceFor(uint32 size)
 	{
 		return (pushBufferSize + size) <= maxPushBufferSize;
+	}
+
+	bool HasSpaceForVertex(int numVertices)
+	{
+		return numVertex + numVertices <= maxNumVertex;
 	}
 
 	void PrintDebug()
@@ -223,7 +232,11 @@ struct GameRenderCommands
 };
 
 
-typedef void(*UpdateAndRender_t)(GameMemory* gameMemory,
+typedef void(*GameUpdateAndRender_t)(GameMemory* gameMemory,
+	GameInputState* gameInput,
+	GameRenderCommands* gameRenderCommands, glm::ivec2 windowDimensions, bool isDebugMode);
+
+typedef void(*DebugSystemUpdateAndRender_t)(GameMemory* gameMemory,
 	GameInputState* gameInput,
 	GameRenderCommands* gameRenderCommands, glm::ivec2 windowDimensions, bool isDebugMode);
 

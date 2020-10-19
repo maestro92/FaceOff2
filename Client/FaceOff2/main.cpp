@@ -38,7 +38,8 @@ struct SDLLoadedCode
 	FILETIME dllLastWriteTime;
 	HMODULE dllBaseAddress;
 
-	UpdateAndRender_t updateAndRenderFunction;
+	GameUpdateAndRender_t gameUpdateAndRender;
+	DebugSystemUpdateAndRender_t debugSystemUpdateAndRender;
 };
 
 
@@ -128,12 +129,12 @@ void SDLLoadCode(SDLLoadedCode* loaded_code)
 	if (loaded_code->dllBaseAddress)
 	{
 		// load the function names
-		UpdateAndRender_t updateAndRenderFunction = (UpdateAndRender_t)GetProcAddress(loaded_code->dllBaseAddress, "UpdateAndRender");
+		GameUpdateAndRender_t gameUpdateAndRender = (GameUpdateAndRender_t)GetProcAddress(loaded_code->dllBaseAddress, "GameUpdateAndRender");
 		
-		if (updateAndRenderFunction)
+		if (gameUpdateAndRender)
 		{
-			loaded_code->updateAndRenderFunction = updateAndRenderFunction;
-			loaded_code->isValid = (loaded_code->updateAndRenderFunction);
+			loaded_code->gameUpdateAndRender = gameUpdateAndRender;
+			loaded_code->isValid = (loaded_code->gameUpdateAndRender);
 		}
 		else
 		{
@@ -159,7 +160,8 @@ void SDLUnloadCode(SDLLoadedCode* loaded_code)
 		loaded_code->dllBaseAddress = 0;
 	}
 	
-	loaded_code->updateAndRenderFunction = NULL;
+	loaded_code->gameUpdateAndRender = NULL;
+	loaded_code->debugSystemUpdateAndRender = NULL;
 	loaded_code->isValid = false;
 }
 
@@ -368,7 +370,8 @@ int main(int argc, char *argv[])
 	gameCode.tmpDllFullPath = "../Debug/GameCode_temp.dll";
 
 
-	gameCode.updateAndRenderFunction = nullptr;
+	gameCode.gameUpdateAndRender = nullptr;
+	gameCode.debugSystemUpdateAndRender = nullptr;
 
 
 	SDLLoadCode(&gameCode);
@@ -427,7 +430,7 @@ int main(int argc, char *argv[])
 		int maxNumVertex = 65535;
 		void* texturedArrayBuffer = VirtualAlloc(0, maxNumVertex * sizeof(TexturedVertex), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
-		int maxNumBitmaps = 1024;
+		int maxNumBitmaps = 65535 >> 2;
 		void* bitmapArrayBuffer = VirtualAlloc(0, maxNumBitmaps * sizeof(LoadedBitmap*), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
 		GameInputState inputs[1] = {};
@@ -475,7 +478,7 @@ int main(int argc, char *argv[])
 			GameRenderCommands gameRenderCommands = {};
 			gameRenderCommands.pushBufferBase = (uint8*)renderCommandsPushBuffer;
 			gameRenderCommands.maxPushBufferSize = renderCommandsPushBufferSize;
-			gameRenderCommands.numElements = 0;
+			gameRenderCommands.numRenderGroups = 0;
 
 			gameRenderCommands.maxNumVertex = maxNumVertex;
 			gameRenderCommands.masterVertexArray = (TexturedVertex*)texturedArrayBuffer;
@@ -488,13 +491,22 @@ int main(int argc, char *argv[])
 
 //			gameRenderCommands.
 
+			// there was no way for me to debug this way.
 			// gameCode.updateAndRenderFunction(&gameMemory, newInput, &gameRenderCommands);
-
-			UpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, debugMode);
+		//	if (UpdateAndRender != nullptr)
+			{
+				GameUpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, debugMode);
+			}
 
 			if (SDLCheckForCodeChange(&gameCode))
 			{
 				SDLReloadCode(&gameCode);
+			}
+
+
+		//	if (Game.DEBUGFrameEnd)
+			{
+				DebugSystemUpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, debugMode);
 			}
 
 			OpenGLRenderCommands(&openGL, &gameRenderCommands, glm::ivec2(0), glm::ivec2(0), windowDimensions);
