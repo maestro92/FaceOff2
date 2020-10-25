@@ -79,6 +79,12 @@ struct FontId
 	uint32 value;
 };
 
+struct GlyphId
+{
+	uint32 value;
+};
+
+
 enum AssetState
 {
 	Unloaded,
@@ -115,14 +121,25 @@ struct LoadedFont
 	char* filename;
 	int maxGlyphs;
 	int numGlyphs;
-	BitmapId* glyphs;
-	float horizontalAdvance;	// what units is this in?
+	GlyphId* glyphs;
+//	float horizontalAdvance;	// what units is this in?
+
+	stbtt_fontinfo fontInfo;
+
+	// this is not really needed since we are just gonna do 2^16, but for consistency, we do those. 
+	int unicodeMapSize;
+	// unicode to glyphIndex
 	uint16* unicodeMap;
+
+	// maybe have to put bitmapIds here, if we want to compute position of text without having to load Each glyphs
+	// currently it is in LoadedGlyph
 };
 
 struct LoadedGlyph
 {
 	char c;
+	glm::ivec2 bitmapXYOffsets;		// will I have situations where I calculate the offset without wanting to load the data?
+									// if so, then i'll put it in LoadedFont.
 	LoadedBitmap bitmap;
 };
 
@@ -221,10 +238,13 @@ BitmapId GetFirstBitmapIdFrom(GameAssets* ga, AssetFamilyType::Enum familyType)
 	return(result);
 }
 
-BitmapId GetBitmapForGlyph(GameAssets* ga, LoadedFont *font, uint32 desiredCodePoint)
+// code point means ascci code number
+GlyphId GetGlyph(GameAssets* ga, LoadedFont *font, uint32 desiredCodePoint)
 {
-	BitmapId result = font->glyphs[10];	
-	return(result);
+	int glyphIndex = font->unicodeMap[desiredCodePoint];
+
+	GlyphId result = font->glyphs[glyphIndex];
+	return result;
 }
 
 
@@ -240,6 +260,11 @@ LoadedFont* GetFont(GameAssets* ga, FontId id)
 	return result;
 }
 
+LoadedGlyph* GetGlyph(GameAssets* ga, GlyphId id)
+{
+	LoadedGlyph* result = &ga->assets[id.value].loadedGlyph;
+	return result;
+}
 
 LoadedBitmap CreateEmptyBitmap(MemoryArena* memoryArena, uint32 width, uint32 height, bool clearToZero)
 {
@@ -263,10 +288,33 @@ LoadedFont CreateEmptyLoadedFont(MemoryArena* memoryArena, char* filename)
 	LoadedFont loadedFont = {};
 	loadedFont.maxGlyphs = 256;
 	loadedFont.numGlyphs = 0;
-	loadedFont.glyphs = PushArray(memoryArena, loadedFont.maxGlyphs, BitmapId);
+	loadedFont.glyphs = PushArray(memoryArena, loadedFont.maxGlyphs, GlyphId);
 	loadedFont.filename = "c:/Windows/Fonts/arial.ttf";
 
-	loadedFont.horizontalAdvance = 10;
+	// assuming we are supporting 65536
+	loadedFont.unicodeMapSize = 65536;
+	loadedFont.unicodeMap = PushArray(memoryArena, loadedFont.unicodeMapSize, uint16);
+	// loadedFont.horizontalAdvance = 10;
+
+
+	unsigned char* fileContent = 0;
+	int fileSize = 0;
+
+	FILE *ptr;
+
+	//	ptr = fopen("c:/Windows/Fonts/arial.ttf", "rb");  // r for read, b for binary
+	ptr = fopen(filename, "rb");
+	fseek(ptr, 0L, SEEK_END);
+	fileSize = ftell(ptr);
+	fseek(ptr, 0L, SEEK_SET);
+
+	fileContent = (unsigned char*)VirtualAlloc(0, (size_t)fileSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+	fread(fileContent, sizeof(uint8), fileSize, ptr); // read 10 bytes to our buffer
+
+	int width, height, xOffset, yOffset;
+
+	stbtt_InitFont(&loadedFont.fontInfo, fileContent, stbtt_GetFontOffsetForIndex(fileContent, 0));
 
 	return loadedFont;
 }
@@ -292,6 +340,8 @@ void LoadBitmapToMemory(GameAssets* ga, BitmapId id)
 	asset->loadedBitmap = result;
 }
 
+int FONT_SCALE = 25;
+
 void LoadGlyphBitmapToMemory(MemoryArena* memoryArena, GameAssets* ga, LoadedFont* loadedFont, BitmapId id)
 {
 	AssetHandle* handle = &ga->masterAssetHandleTable[id.value];
@@ -301,29 +351,23 @@ void LoadGlyphBitmapToMemory(MemoryArena* memoryArena, GameAssets* ga, LoadedFon
 
 	char c = asset->loadedGlyph.c;
 
-
-	unsigned char* fileContent = 0;
-	int fileSize = 0;
-
-	FILE *ptr;
-
-//	ptr = fopen("c:/Windows/Fonts/arial.ttf", "rb");  // r for read, b for binary
-	ptr = fopen(loadedFont->filename, "rb");
-	fseek(ptr, 0L, SEEK_END);
-	fileSize = ftell(ptr);
-	fseek(ptr, 0L, SEEK_SET);
-
-	fileContent = (unsigned char*)VirtualAlloc(0, (size_t)fileSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-
-	fread(fileContent, sizeof(uint8), fileSize, ptr); // read 10 bytes to our buffer
+	float scale = stbtt_ScaleForPixelHeight(&loadedFont->fontInfo, FONT_SCALE);
 
 	int width, height, xOffset, yOffset;
+	unsigned char*  monoBitmap = stbtt_GetCodepointBitmap(&loadedFont->fontInfo, scale,
+															scale, c,
+															&width, &height, &xOffset, &yOffset);
 
-	stbtt_fontinfo font;
-	stbtt_InitFont(&font, fileContent, stbtt_GetFontOffsetForIndex(fileContent, 0));
-	unsigned char*  monoBitmap = stbtt_GetCodepointBitmap(&font, 0, stbtt_ScaleForPixelHeight(&font, 25), c, &width, &height, &xOffset, &yOffset);
+	int c_x1, c_y1, c_x2, c_y2;
+	stbtt_GetCodepointBitmapBox(&loadedFont->fontInfo, c, scale, scale, &c_x1, &c_y1, &c_x2, &c_y2);
+
+	
 	uint8* src = monoBitmap;
 
+	if (c == 'l' || c == 'm' || c == 'n')
+	{
+		std::cout << "char is " << c << ", " << "c_1 (" << c_x1 << ", " << c_y1 << ")" << "		(" << c_x2 << ", " << c_y2 << ")" << std::endl;
+	}
 	// 4 bytes per pixel
 	LoadedBitmap result = CreateEmptyBitmap(memoryArena, width, height, false);
 	result.width = width;
@@ -345,13 +389,47 @@ void LoadGlyphBitmapToMemory(MemoryArena* memoryArena, GameAssets* ga, LoadedFon
 		}
 	}
 
+	/*
+	for (int j = 0; j < height; ++j) 
+	{
+		for (int i = 0; i < width; ++i)
+		{
+			putchar(" .:ioVM@"[monoBitmap[j*width + i] >> 5]);
+		}
+		putchar('\n');
+	}
+
+	for (int y = 0; y < height; ++y)
+	{
+		for (int x = 0; x < width; ++x)
+		{
+			int row = height - y - 1;
+			if (dst[row * width + x] )
+			{
+				std::cout << '@';
+			}
+			else
+			{
+				std::cout << ' ';
+			}
+		}
+		std::cout << '\n';
+	}
+	*/
+
 	stbtt_FreeBitmap(monoBitmap, 0);
 
 
 	void* textureHandle = platformAPI.allocateTexture(result.width, result.height, result.memory);
 	result.textureHandle = POINTER_TO_UINT32(textureHandle);
-	std::cout << "texture handle " << result.textureHandle << std::endl;
+
+//	result.textureHandle = platformAPI.allocateTexture2(result.width, result.height, result.memory);
+
 	asset->loadedGlyph.bitmap = result;
+	asset->loadedGlyph.bitmapXYOffsets = glm::ivec2(c_x1, c_y1);
+	
+	//	std::cout << "id " << id.value << ", texture handle " << result.textureHandle << ", sset->loadedGlyph.bitmap  " << asset->loadedGlyph.bitmap.textureHandle << std::endl;
+
 }
 
 
@@ -409,7 +487,9 @@ void AddCharacterAsset(GameAssets* ga, LoadedFont* fontAssetInfo, char c)
 	fontAssetInfo->glyphs[glyphIndex] = { newAssetInfo.id };
 	fontAssetInfo->numGlyphs++;
 
+	fontAssetInfo->unicodeMap[c] = glyphIndex;
 	newAssetInfo.data->loadedGlyph.c = c;
+	
 }
 
 void AddFontAsset(GameAssets* ga, LoadedFont* fontAssetInfo)
@@ -420,18 +500,119 @@ void AddFontAsset(GameAssets* ga, LoadedFont* fontAssetInfo)
 	newAssetInfo.data->type = AssetDataFormatType::Font;
 
 
-	
+	/*
 	LoadedFont font = {};
 	font.numGlyphs = fontAssetInfo->numGlyphs;
+	font.maxGlyphs = fontAssetInfo
 	font.horizontalAdvance = fontAssetInfo->horizontalAdvance;
 
-	int size = font.numGlyphs * sizeof(BitmapId);
-	font.glyphs = (BitmapId*)malloc(size);
-	memcpy((void*)font.glyphs, (void*)fontAssetInfo->glyphs, size);
+	font.unicodeMapSize = fontAssetInfo->unicodeMapSize;
 
-	newAssetInfo.data->loadedFont = font;
+
+//	int size = font.numGlyphs * sizeof(BitmapId);
+	//	font.glyphs = (BitmapId*)malloc(size);
+//	memcpy((void*)font.glyphs, (void*)fontAssetInfo->glyphs, size);
+
+
+//	font.unicodeMap = (uint16*)malloc(65536);
+//	memcpy((void*)font.glyphs, (void*)fontAssetInfo->glyphs, size);
+*/
+
+	newAssetInfo.data->loadedFont = *fontAssetInfo;
 }
 
+
+// defined in the gamecode
+
+
+int STBtest()
+{
+	
+//	char buffer[10000];
+	unsigned char screen[20][79];
+
+
+	stbtt_fontinfo font;
+	int i, j, ascent, baseline, ch = 0;
+	float scale, xpos = 0; // leave a little padding in case the character extends left
+//	char *text = "Heljo World!"; // intentionally misspelled to show 'lj' brokenness
+	char *text = "lmn"; // intentionally misspelled to show 'lj' brokenness
+
+
+	int fileSize = 0;
+	FILE *ptr;
+	ptr = fopen("c:/Windows/Fonts/arial.ttf", "rb");  // r for read, b for binary
+	fseek(ptr, 0L, SEEK_END);
+	fileSize = ftell(ptr);
+	fseek(ptr, 0L, SEEK_SET);
+	unsigned char* buffer = new unsigned char[fileSize];
+	fread(buffer, sizeof(uint8), fileSize, ptr); // read 10 bytes to our buffer
+
+
+//	fread(buffer, 1, 10000, fopen("c:/Windows/Fonts/arial.ttf", "rb"));
+	stbtt_InitFont(&font, (const unsigned char*)buffer, 0);
+	
+	scale = stbtt_ScaleForPixelHeight(&font, 15);
+	stbtt_GetFontVMetrics(&font, &ascent, 0, 0);
+	baseline = (int)(ascent*scale);
+	
+	std::cout << "ascent " << ascent << std::endl;
+	std::cout << "baseline " << baseline << std::endl;
+
+	while (text[ch]) {
+		unsigned char screen2[20][79];
+
+		int advance, lsb, x0, y0, x1, y1;
+		float x_shift = 0;// xpos - (float)floor(xpos);
+		stbtt_GetCodepointHMetrics(&font, text[ch], &advance, &lsb);
+//		stbtt_GetCodepointBitmapBoxSubpixel(&font, text[ch], scale, scale, x_shift, 0, &x0, &y0, &x1, &y1);
+	
+		stbtt_GetCodepointBitmapBox(&font, text[ch], scale, scale, &x0, &y0, &x1, &y1);
+
+		std::cout << "text[ch] " << text[ch] << ", x0 y0 (" << x0 << ", " << y0 << ")   " << "x1 y1 (" << x1 << ", " << y1 << ")" << std::endl;
+
+		std::cout << "			pos " << ((int)xpos + x0) << "," << (baseline + y0) << std::endl;
+		
+		stbtt_MakeCodepointBitmapSubpixel(&font, &screen[baseline + y0][(int)xpos + x0], x1 - x0, y1 - y0, 79, scale, scale, x_shift, 0, text[ch]);
+		// note that this stomps the old data, so where character boxes overlap (e.g. 'lj') it's wrong
+		// because this API is really for baking character bitmaps into textures. if you want to render
+		// a sequence of characters, you really need to render each bitmap to a temp buffer, then
+		// "alpha blend" that into the working buffer
+	
+	//	stbtt_MakeCodepointBitmapSubpixel(&font, &screen2[baseline + y0][x0], x1 - x0, y1 - y0, 79, scale, scale, x_shift, 0, text[ch]);
+
+		
+		xpos += (advance * scale);
+		if (text[ch + 1])
+			xpos += scale * stbtt_GetCodepointKernAdvance(&font, text[ch], text[ch + 1]);
+		++ch;
+
+		/*
+		for (j = 0; j < 20; ++j) {
+			for (i = 0; i < 78; ++i)
+				putchar(" .:ioVM@"[screen2[j][i] >> 5]);
+			putchar('\n');
+		}
+
+
+		for (j = 0; j < 20; ++j) {
+			for (i = 0; i < 78; ++i)
+				screen2[j][i] = 204;
+		}
+
+		std::cout << "\n" << std::endl;
+		*/
+	}
+
+	for (j = 0; j < 20; ++j) {
+		for (i = 0; i < 78; ++i)
+			putchar(" .:ioVM@"[screen[j][i] >> 5]);
+		putchar('\n');
+	}
+		
+	return 0;
+
+}
 
 void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga)
 {
@@ -475,6 +656,13 @@ void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga)
 		AddCharacterAsset(ga, &loadedFont, i);
 	}
 	
+	for (int i = '0'; i <= '9'; i++)
+	{
+		AddCharacterAsset(ga, &loadedFont, i);
+	}
+
+	AddCharacterAsset(ga, &loadedFont, ' ');
+
 	EndAssetFamily(ga);
 
 	BeginAssetFamily(ga, AssetFamilyType::Font);
@@ -503,11 +691,35 @@ void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga)
 		else if (asset->type == AssetDataFormatType::FontGlyph)
 		{
 			BitmapId bitmapId = { i };
-			// std::cout << bitmapId.value << std::endl;
+			// std::cout << "i " << i << ", bitmapId.value " << bitmapId.value << std::endl;
 			LoadGlyphBitmapToMemory(memoryArena, ga, &loadedFont, bitmapId);
+		
+			/*
+			LoadedBitmap* bitmap = GetBitmap(ga, bitmapId);
+			std::cout << "i " << i << ", bitmap value " << bitmapId.value << " " << bitmap->textureHandle << std::endl;
+			int a = 1;
+			*/
 		}
 	}
+
+	/*
+	
+	for (int i = 0; i < ga->numAssets; i++)
+	{
+		Asset* asset = &ga->assets[i];
+
+		if (asset->type == AssetDataFormatType::Bitmap || asset->type == AssetDataFormatType::FontGlyph)
+		{
+			BitmapId bitmapId = { i };
+
+	
+			LoadedBitmap* bitmap = GetBitmap(ga, bitmapId);
+			std::cout << "i " << i << ", bitmap value " << bitmapId.value << " " << bitmap->textureHandle << std::endl;
+
+			//		LoadBitmapToMemory(ga, bitmapId);
+		}
+	}
+	*/
+	// STBtest();
 }
 
-
-// defined in the gamecode

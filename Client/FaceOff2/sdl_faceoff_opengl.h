@@ -534,7 +534,7 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 	// gl buffer data
 
 
-	std::cout << "commands->numRenderGroups " << commands->numRenderGroups << std::endl;
+	// std::cout << "commands->numRenderGroups " << commands->numRenderGroups << std::endl;
 
 	for (unsigned int i = 0; i < commands->numRenderGroups; i++)
 	{
@@ -574,7 +574,7 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 					int bitmayArrayIndex = entry->masterBitmapArrayOffset;
 					LoadedBitmap* bitmap = commands->masterBitmapArray[bitmayArrayIndex + j];
 
-				//	std::cout << "bitmap->textureHandle " << bitmap->textureHandle << std::endl;
+					// std::cout << "bitmap->textureHandle " << bitmap->textureHandle << std::endl;
 
 					if (currentTextureHandle != (GLuint)POINTER_TO_UINT32(bitmap->textureHandle))
 					{

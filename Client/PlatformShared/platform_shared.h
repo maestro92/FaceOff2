@@ -31,6 +31,11 @@ typedef size_t MemoryIndex;
 // make a type that this function template
 
 
+std::ostream& operator<<(std::ostream& os, glm::ivec3 v)
+{
+	return os << v.x << " " << v.y << " " << v.z;
+}
+
 std::ostream& operator<<(std::ostream& os, glm::vec3 v)
 {
 	return os << v.x << " " << v.y << " " << v.z;
@@ -59,6 +64,7 @@ struct BitmapInfo
 typedef BitmapInfo(*PlatformReadImageFile)(char* filename);
 typedef void*(*PlatformAllocateTexture)(uint32 width, uint32 height, void* data);
 
+typedef unsigned int(*PlatformAllocateTexture2)(uint32 width, uint32 height, void* data);
 
 
 
@@ -182,10 +188,15 @@ struct LoadedBitmap
 	uint32 textureHandle;
 };
 
-
+struct GameRenderSettings
+{
+	glm::ivec2 dims;
+};
 
 struct GameRenderCommands
 {
+	GameRenderSettings settings;
+
 	uint8* pushBufferBase;
 	uint32 pushBufferSize;	
 	uint32 maxPushBufferSize;

@@ -159,10 +159,8 @@ void PushQuad(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, 
 		gameRenderCommands->numBitmaps++;
 
 
-	//	cout << "entry->numQuads " << entry->numQuads << endl;
+	//	cout << "entry masterBitmapArray " << index << " " << bitmap->textureHandle << endl;
 	//	cout << "gameRenderCommands->numBitmaps " << gameRenderCommands->numBitmaps << endl;
-
-
 
 		int index2 = gameRenderCommands->numVertex;
 		TexturedVertex* vertexArray = &(gameRenderCommands->masterVertexArray[index2]);
@@ -192,17 +190,57 @@ void PushQuad(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, 
 	}
 }
 
+
+enum AlignmentMode
+{
+	Centered,
+	Left,
+	Right,
+	Top,
+	Bottom
+};
+
 void PushBitmap(GameRenderCommands* gameRenderCommands, 
 					RenderGroup* renderGroup, 
 					LoadedBitmap* bitmap, 
 					glm::vec4 color, 
 					glm::vec3 position, 
-					glm::vec3 dim)
+					glm::vec3 halfDim, AlignmentMode hAlignment, AlignmentMode vAlignment)
 {
-	// push the 6 sides
-	glm::vec3 min = position - dim;
-	glm::vec3 max = position + dim;
-	
+	glm::vec3 min = position;
+	glm::vec3 max = position;
+	switch (hAlignment)
+	{
+		case AlignmentMode::Centered:
+			min.x -= halfDim.x;
+			max.x += halfDim.x;
+			break;
+		case AlignmentMode::Left:
+			max.x += halfDim.x * 2;
+			break;
+		case AlignmentMode::Right:
+			min.x -= halfDim.x * 2;
+			break;
+		default:
+			break;
+	}
+
+	switch (vAlignment)
+	{
+		case AlignmentMode::Centered:
+			min.y -= halfDim.y;
+			max.y += halfDim.y;
+			break;
+		case AlignmentMode::Top:
+			min.y -= halfDim.y * 2;
+			break;
+		case AlignmentMode::Bottom:
+			max.y += halfDim.y * 2;
+			break;
+		default:
+			break;
+	}
+
 	glm::vec3 p0 = glm::vec3(min.x, max.y, max.z);
 	glm::vec3 p1 = glm::vec3(max.x, max.y, max.z);
 	glm::vec3 p2 = glm::vec3(min.x, min.y, max.z);
@@ -332,7 +370,7 @@ void PushCoordinateSystem(GameRenderCommands* gameRenderCommands, RenderGroup* g
 //	yAxisColor = COLOR_WHITE;
 //	zAxisColor = COLOR_WHITE;
 
-	float cubeThickness = 0.5f;
+	float cubeThickness = 0.05f;
 	PushCube(gameRenderCommands, group, bitmap, xAxisColor, xAxisMiddlePos, glm::vec3(dim.x / 2, cubeThickness, cubeThickness));
 	PushCube(gameRenderCommands, group, bitmap, yAxisColor, yAxisMiddlePos, glm::vec3(cubeThickness, dim.y / 2, cubeThickness));
 	PushCube(gameRenderCommands, group, bitmap, zAxisColor, zAxisMiddlePos, glm::vec3(cubeThickness, cubeThickness, dim.z / 2));
@@ -724,6 +762,14 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 }
 
 
+void ComputeUIBitmapPos(glm::vec3* curbaseLinePos,
+						LoadedGlyph* loadedGlyph)
+{
+	glm::ivec2 offset = loadedGlyph->bitmapXYOffsets;
+//	(*curba
+//)
+}
+
 
 extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gameMemory, 
 																GameInputState* gameInputState, 
@@ -742,8 +788,10 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 //	glm::mat4 cameraProj = glm::perspective(160.0f, 800.0f / 640.0f, 0.5f, 1000.0f);
 //	glm::mat4 cameraProj = glm::mat4(1.0f); // glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f);
 //	glm::mat4 cameraProj = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f);
+	float halfWidth = gameRenderCommands->settings.dims.x / 2.0f;
+	float halfheight = gameRenderCommands->settings.dims.y / 2.0f;
 
-	glm::mat4 cameraProj = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f);
+	glm::mat4 cameraProj = glm::ortho(-halfWidth, halfWidth, -halfheight, halfheight);
 
 //	cameraProj = cameraProj2;
 
@@ -770,20 +818,64 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	group.quads->masterBitmapArrayOffset = gameRenderCommands->numBitmaps;
 	group.quads->renderSetup = renderSetup;
 
+	// how big do we want char to be displayed
+	const float DEBUG_CHAR_BITMAP_SCALE = 1;
 
-	string s = "abc";
 
-	glm::vec3 pos = glm::vec3(0);
+	string s = "abcdefghijlmnopqrstuvwxyz 123456789 ABCDEFGHIJLMNOPQRSTUVWXYZ";
+	//string s = "Hej ab";
+	
+	int ascent = 0;
+	stbtt_GetFontVMetrics(&debugLoadedFont->fontInfo, &ascent, 0, 0);
+	float scale = stbtt_ScaleForPixelHeight(&debugLoadedFont->fontInfo, FONT_SCALE);
 
-	for (int i = 0; i < 1; i++)
+	float xPos = -halfWidth;
+	int yBaselinePos = halfheight - (int)(ascent * scale);
+
+
+//	glm::vec3 baseLinePos = glm::vec3(0);
+
+	for (int i = 0; i < s.size(); i++)
 	{
-		BitmapId bitmapID = GetBitmapForGlyph(transientState->assets, debugLoadedFont, 'c');
-		LoadedBitmap* bitmap = GetBitmap(transientState->assets, bitmapID);
 
-		float scale = 0.05;
-		PushBitmap(gameRenderCommands, &group, bitmap, COLOR_WHITE, pos, glm::vec3(scale, scale, 0));
+		int advance, leftSideBearing;
+		stbtt_GetCodepointHMetrics(&debugLoadedFont->fontInfo, s[i], &advance, &leftSideBearing);
 
-		pos.x += 10;
+		GlyphId glyphID = GetGlyph(transientState->assets, debugLoadedFont, s[i]);
+		LoadedGlyph* glyphBitmap = GetGlyph(transientState->assets, glyphID);
+
+//		cout << "s[i] " << s[i] << endl;
+		if (s[i] == '\n')
+		{
+			yBaselinePos += 
+		}
+		else
+		{
+			float height = DEBUG_CHAR_BITMAP_SCALE * glyphBitmap->bitmap.height;
+			float width = glyphBitmap->bitmap.width / (float)glyphBitmap->bitmap.height * height;
+
+//			cout << "		bitmap->width " << glyphBitmap->bitmap.width << " bitmap->height " << glyphBitmap->bitmap.height;
+//			cout << "		width " << width << " height " << height;
+
+//			ComputeUIBitmapPos(baseLinePos, bitmap)
+
+
+			int x = xPos + glyphBitmap->bitmapXYOffsets.x;
+			int y = yBaselinePos - glyphBitmap->bitmapXYOffsets.y;
+
+			glm::vec3 leftTopPos = glm::vec3(x, y, 0);
+
+			PushBitmap(gameRenderCommands, &group, &glyphBitmap->bitmap, COLOR_WHITE, leftTopPos, glm::vec3(width / 2.0, height / 2.0, 0), AlignmentMode::Left, AlignmentMode::Top);
+
+			
+			xPos += (advance * scale);
+			if (i < s.size())
+				xPos += scale * stbtt_GetCodepointKernAdvance(&debugLoadedFont->fontInfo, s[i], s[i+1]);
+		}
+
+		// adding kerning
+
+
 	}
 
 }

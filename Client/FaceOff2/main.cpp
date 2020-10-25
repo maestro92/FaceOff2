@@ -423,6 +423,8 @@ int main(int argc, char *argv[])
 
 		gameMemory.platformAPI.readImageFile = (PlatformReadImageFile)SDLLoadPNGFile;
 		gameMemory.platformAPI.allocateTexture = (PlatformAllocateTexture)OpenGLAllocateTexture;
+		// gameMemory.platformAPI.allocateTexture2 = (PlatformAllocateTexture2)OpenGLAllocateTexture2;
+
 
 		uint32_t renderCommandsPushBufferSize = Megabytes(64);
 		void* renderCommandsPushBuffer = VirtualAlloc(0, (size_t)renderCommandsPushBufferSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -476,6 +478,9 @@ int main(int argc, char *argv[])
 			}
 
 			GameRenderCommands gameRenderCommands = {};
+
+			gameRenderCommands.settings.dims = windowDimensions;
+
 			gameRenderCommands.pushBufferBase = (uint8*)renderCommandsPushBuffer;
 			gameRenderCommands.maxPushBufferSize = renderCommandsPushBufferSize;
 			gameRenderCommands.numRenderGroups = 0;
