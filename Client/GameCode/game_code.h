@@ -822,12 +822,18 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	const float DEBUG_CHAR_BITMAP_SCALE = 1;
 
 
-	string s = "abcdefghijlmnopqrstuvwxyz 123456789 ABCDEFGHIJLMNOPQRSTUVWXYZ";
+	string s = "abcdefghijlmnopqrstuvwxyz 123456789\nABCDEFGHIJLMNOPQRSTUVWXYZ";
 	//string s = "Hej ab";
 	
 	int ascent = 0;
-	stbtt_GetFontVMetrics(&debugLoadedFont->fontInfo, &ascent, 0, 0);
+	int descent = 0;
+	int lineGap = 0;
+	stbtt_GetFontVMetrics(&debugLoadedFont->fontInfo, &ascent, &descent, &lineGap);
 	float scale = stbtt_ScaleForPixelHeight(&debugLoadedFont->fontInfo, FONT_SCALE);
+
+	int nextVert = (ascent - descent + lineGap);
+
+	int scaledLineGap = (int)(nextVert * scale);
 
 	float xPos = -halfWidth;
 	int yBaselinePos = halfheight - (int)(ascent * scale);
@@ -844,21 +850,15 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 		GlyphId glyphID = GetGlyph(transientState->assets, debugLoadedFont, s[i]);
 		LoadedGlyph* glyphBitmap = GetGlyph(transientState->assets, glyphID);
 
-//		cout << "s[i] " << s[i] << endl;
 		if (s[i] == '\n')
 		{
-			yBaselinePos += 
+			xPos = -halfWidth;
+			yBaselinePos -= scaledLineGap;
 		}
 		else
 		{
 			float height = DEBUG_CHAR_BITMAP_SCALE * glyphBitmap->bitmap.height;
 			float width = glyphBitmap->bitmap.width / (float)glyphBitmap->bitmap.height * height;
-
-//			cout << "		bitmap->width " << glyphBitmap->bitmap.width << " bitmap->height " << glyphBitmap->bitmap.height;
-//			cout << "		width " << width << " height " << height;
-
-//			ComputeUIBitmapPos(baseLinePos, bitmap)
-
 
 			int x = xPos + glyphBitmap->bitmapXYOffsets.x;
 			int y = yBaselinePos - glyphBitmap->bitmapXYOffsets.y;
