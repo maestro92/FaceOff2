@@ -134,6 +134,8 @@ baseline is 12
                 'e' x0 y0 (1, -8)   x1 y1 (8, 1)        pos 12,4
                 'j' x0 y0 (-1, -10) x1 y1 (3, 3)        pos 18,2
 
+
+
 so bitmaps are rendered from the top left
 
                 MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM

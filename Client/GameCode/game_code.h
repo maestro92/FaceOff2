@@ -1,9 +1,10 @@
 #pragma once
 
 #include "../PlatformShared/platform_shared.h"
+#include "debug_interface.h"
 #include "memory.h"
 #include "../FaceOff2/asset.h"
-
+#include "debug.h"
 
 #include <iostream>
 
@@ -25,22 +26,8 @@ static LoadedFont* debugLoadedFont;
 static glm::mat4 globalDebugCameraMat;
 
 
-struct TimedBlock
-{
-	int counter;
 
-	TimedBlock()
-	{
-
-	}
-
-
-};
-
-
-
-
-
+static DebugTable* GlobalDebugTable;
 
 
 struct CameraEntity
@@ -106,12 +93,6 @@ struct TransientState
 
 };
 
-struct DebugState
-{
-	bool isInitalized;
-	MemoryArena memoryArena;
-	float fps;
-};
 
 
 
@@ -669,10 +650,7 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 }
 
 
-void RenderDebug()
-{
-
-}
+extern DebugTable* globalDebugTable;
 
 
 extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory, GameInputState* gameInputState, GameRenderCommands* gameRenderCommands, 
@@ -702,6 +680,8 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 	{
 		cout << "move back" << endl;
 	}
+
+	globalDebugTable = gameMemory->debugTable;
 
 
 	GameState* gameState = (GameState*)gameMemory->permenentStorage;
@@ -762,13 +742,7 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 }
 
 
-void ComputeUIBitmapPos(glm::vec3* curbaseLinePos,
-						LoadedGlyph* loadedGlyph)
-{
-	glm::ivec2 offset = loadedGlyph->bitmapXYOffsets;
-//	(*curba
-//)
-}
+
 
 
 extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gameMemory, 
@@ -785,24 +759,12 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	GameState* gameState = (GameState*)gameMemory->permenentStorage;
 	TransientState* transientState = (TransientState*)gameMemory->transientStorage;
 
-//	glm::mat4 cameraProj = glm::perspective(160.0f, 800.0f / 640.0f, 0.5f, 1000.0f);
-//	glm::mat4 cameraProj = glm::mat4(1.0f); // glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f);
-//	glm::mat4 cameraProj = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f);
+
 	float halfWidth = gameRenderCommands->settings.dims.x / 2.0f;
 	float halfheight = gameRenderCommands->settings.dims.y / 2.0f;
 
 	glm::mat4 cameraProj = glm::ortho(-halfWidth, halfWidth, -halfheight, halfheight);
 
-//	cameraProj = cameraProj2;
-
-//	glm::mat4 persp = glm::transpose(cameraProj);
-//	glm::mat4 ortho = glm::transpose(cameraProj2);
-
-//	cout << "perspective " << endl;
-//	cout << persp << endl;
-
-//	cout << "ortho " << endl;
-//	cout << ortho << endl;
 
 	// We start a render setup
 	RenderGroup group = {};
@@ -821,7 +783,6 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	// how big do we want char to be displayed
 	const float DEBUG_CHAR_BITMAP_SCALE = 1;
 
-
 	string s = "abcdefghijlmnopqrstuvwxyz 123456789\nABCDEFGHIJLMNOPQRSTUVWXYZ";
 	//string s = "Hej ab";
 	
@@ -831,19 +792,15 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	stbtt_GetFontVMetrics(&debugLoadedFont->fontInfo, &ascent, &descent, &lineGap);
 	float scale = stbtt_ScaleForPixelHeight(&debugLoadedFont->fontInfo, FONT_SCALE);
 
-	int nextVert = (ascent - descent + lineGap);
-
-	int scaledLineGap = (int)(nextVert * scale);
+	int lineGapBetweenNextBaseline = (ascent - descent + lineGap);
+	int scaledLineGap = (int)(lineGapBetweenNextBaseline * scale);
 
 	float xPos = -halfWidth;
 	int yBaselinePos = halfheight - (int)(ascent * scale);
 
-
-//	glm::vec3 baseLinePos = glm::vec3(0);
-
+	// This is essentially following the example from stb library
 	for (int i = 0; i < s.size(); i++)
 	{
-
 		int advance, leftSideBearing;
 		stbtt_GetCodepointHMetrics(&debugLoadedFont->fontInfo, s[i], &advance, &leftSideBearing);
 
@@ -872,10 +829,30 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 			if (i < s.size())
 				xPos += scale * stbtt_GetCodepointKernAdvance(&debugLoadedFont->fontInfo, s[i], s[i+1]);
 		}
-
-		// adding kerning
-
-
 	}
 
+	cout << "Before globalDebugTable->currentEventArrayIndex " << globalDebugTable->currentEventArrayIndex << endl;
+	// we change the array we want to write to
+	globalDebugTable->currentEventArrayIndex = !globalDebugTable->currentEventArrayIndex;
+
+	cout << "		After globalDebugTable->currentEventArrayIndex " << globalDebugTable->currentEventArrayIndex << endl;
+
+
+	// atomically reset the event index to zero. OBVIOUSLY we have to atomically write it  
+	uint64 arrayIndex_eventIndex = globalDebugTable->currentEventArrayIndex;
+	globalDebugTable->eventArrayIndex_EventIndex = (uint64)(globalDebugTable->currentEventArrayIndex << 32);
+
+
+	
+	// get the top 32 bit
+	uint32 eventArrayIndex = arrayIndex_eventIndex >> 32;
+
+	// we want the ladder 32 bit
+	uint32 numEvents = arrayIndex_eventIndex & 0xFFFFFFFF;
+	
+
+	// Assuming we aren't recording debugEvents multithreadedly
+//	ProcessDebugEvents(debugState, globalDebugTable->events[eventArrayIndex], numEvents);
+
+	
 }

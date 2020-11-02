@@ -1,5 +1,6 @@
 
 #include "../PlatformShared/platform_shared.h"
+#include "debug_interface.h"
 
 #include "SDL.h"
 #undef main
@@ -18,11 +19,10 @@
 bool debugMode;
 bool is_game_running;
 
-// #define STB_TRUETYPE_IMPLEMENTATION
-// #include "stb_truetype.h"
 
 
-
+static DebugTable globalDebugTable_;
+DebugTable* globalDebugTable = &globalDebugTable_;
 
 static OpenGLStuff openGL;
 
@@ -350,6 +350,8 @@ void debugInputs(GameInputState* new_input_state)
 	}
 }
 
+
+
 int main(int argc, char *argv[])
 {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC | SDL_INIT_AUDIO);
@@ -410,6 +412,7 @@ int main(int argc, char *argv[])
 		gameMemory.transientStorageSize = Megabytes(256);
 		gameMemory.debugStorageSize = Megabytes(256);
 
+		gameMemory.debugTable = globalDebugTable;
 
 
 		LPVOID baseAddress = 0;
@@ -438,7 +441,7 @@ int main(int argc, char *argv[])
 		GameInputState inputs[1] = {};
 		GameInputState* newInput = &inputs[0];
 
-
+		int frame = 0;
 		while (is_game_running)
 		{
 			newInput->dtForFrame = targetSecondsPerFrame;
@@ -493,15 +496,22 @@ int main(int argc, char *argv[])
 			gameRenderCommands.masterBitmapArray = (LoadedBitmap**)bitmapArrayBuffer;
 			gameRenderCommands.numBitmaps = 0;
 
+			
+			cout << "frame " << frame << endl;
 
-//			gameRenderCommands.
+			if (frame == 1)
+			{
+				int a = 1;
+			}
 
+			BEGIN_BLOCK("Game Update");
 			// there was no way for me to debug this way.
 			// gameCode.updateAndRenderFunction(&gameMemory, newInput, &gameRenderCommands);
-		//	if (UpdateAndRender != nullptr)
+			//	if (UpdateAndRender != nullptr)
 			{
 				GameUpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, debugMode);
 			}
+			END_BLOCK();
 
 			if (SDLCheckForCodeChange(&gameCode))
 			{
@@ -527,6 +537,8 @@ int main(int argc, char *argv[])
 			
 		//	cout << measuredSecondsPerFrame << endl;
 			lastCounter = endCounter;
+
+			frame++;
 		}
 	}
 

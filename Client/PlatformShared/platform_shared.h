@@ -3,7 +3,6 @@
 
 #include "glm/ext.hpp"
 
-
 #define Kilobytes(value) ((value)*1024LL)
 #define Megabytes(value) (Kilobytes(value)*1024LL)
 #define Gigabytes(value) (Megabytes(value)*1024LL)
@@ -24,6 +23,7 @@ typedef int64_t int64;
 
 typedef size_t MemoryIndex;
 
+#include "debug_interface.h"
 
 #define POINTER_TO_UINT32(pointer) ((uint32)(MemoryIndex)(pointer))
 #define UINT32_TO_POINTER(type, value) (type *)((MemoryIndex)value)
@@ -114,6 +114,7 @@ struct PlatformAPI
 	PlatformAllocateTexture allocateTexture;
 };
 
+struct DebugTable;
 
 struct GameMemory
 {
@@ -126,6 +127,8 @@ struct GameMemory
 	uint64 debugStorageSize;
 	void* debugStorage;
 	
+	DebugTable* debugTable;
+
 	PlatformAPI platformAPI;
 
 };

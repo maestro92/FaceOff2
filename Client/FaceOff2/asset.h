@@ -122,7 +122,6 @@ struct LoadedFont
 	int maxGlyphs;
 	int numGlyphs;
 	GlyphId* glyphs;
-//	float horizontalAdvance;	// what units is this in?
 
 	stbtt_fontinfo fontInfo;
 
@@ -289,7 +288,7 @@ LoadedFont CreateEmptyLoadedFont(MemoryArena* memoryArena, char* filename)
 	loadedFont.maxGlyphs = 256;
 	loadedFont.numGlyphs = 0;
 	loadedFont.glyphs = PushArray(memoryArena, loadedFont.maxGlyphs, GlyphId);
-	loadedFont.filename = "c:/Windows/Fonts/arial.ttf";
+	loadedFont.filename = filename;
 
 	// assuming we are supporting 65536
 	loadedFont.unicodeMapSize = 65536;
@@ -311,8 +310,6 @@ LoadedFont CreateEmptyLoadedFont(MemoryArena* memoryArena, char* filename)
 	fileContent = (unsigned char*)VirtualAlloc(0, (size_t)fileSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
 	fread(fileContent, sizeof(uint8), fileSize, ptr); // read 10 bytes to our buffer
-
-	int width, height, xOffset, yOffset;
 
 	stbtt_InitFont(&loadedFont.fontInfo, fileContent, stbtt_GetFontOffsetForIndex(fileContent, 0));
 
