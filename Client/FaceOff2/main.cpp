@@ -451,10 +451,9 @@ int main(int argc, char *argv[])
 			SDLProcessPendingEvents(newInput);
 
 			// process mouse events
-			glm::ivec2 mouseP;
-			uint32 mouseState = SDL_GetMouseState(&mouseP.x, &mouseP.y);
-			newInput->mouseX = (float)mouseP.x;
-			newInput->mouseY = (float)windowDimensions.y - mouseP.y;
+
+			uint32 mouseState = SDL_GetMouseState(&newInput->mousePos.x, &newInput->mousePos.y);
+			newInput->mousePos.y = (float)windowDimensions.y - newInput->mousePos.y;
 
 			Uint32 SDLButtonID[PlatformMouseButton_Count] =
 			{

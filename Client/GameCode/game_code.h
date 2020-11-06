@@ -28,7 +28,7 @@ static glm::mat4 globalDebugCameraMat;
 
 
 static DebugTable* GlobalDebugTable;
-
+int MAX_DEBUG_EVENT_ARRAY_COUNT = 8;
 
 struct CameraEntity
 {
@@ -120,14 +120,12 @@ void* PushRenderElement_(GameRenderCommands* commands, RenderGroupEntryType type
 	return result;
 }
 
-
-
 // p0 p1 p2 p3 in clock wise order
-void PushQuad(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, LoadedBitmap* bitmap,
-													glm::vec3 p0, glm::vec2 uv0, glm::vec4 color0,
-												    glm::vec3 p1, glm::vec2 uv1, glm::vec4 color1,
-													glm::vec3 p2, glm::vec2 uv2, glm::vec4 color2,
-													glm::vec3 p3, glm::vec2 uv3, glm::vec4 color3)
+void PushQuad_Core(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, LoadedBitmap* bitmap,
+															glm::vec3 p0, glm::vec2 uv0, glm::vec4 color0,
+															glm::vec3 p1, glm::vec2 uv1, glm::vec4 color1,
+															glm::vec3 p2, glm::vec2 uv2, glm::vec4 color2,
+															glm::vec3 p3, glm::vec2 uv3, glm::vec4 color3)
 {
 	if (gameRenderCommands->HasSpaceForVertex(4))
 	{
@@ -239,14 +237,11 @@ void PushBitmap(GameRenderCommands* gameRenderCommands,
 
 
 	// front
-	PushQuad(gameRenderCommands, renderGroup, bitmap,	p0, t0, c0,
-														p1, t1, c1,
-														p3, t3, c3,
-														p2, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p0, t0, c0,
+															p1, t1, c1,
+															p3, t3, c3,
+															p2, t2, c2);
 }
-
-
-
 
 
 
@@ -302,35 +297,35 @@ void PushCube(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, 
 	glm::vec4 c3 = color;
 
 	// front
-	PushQuad(gameRenderCommands, renderGroup, bitmap,	p0, t0, c0,
-														p1, t1, c1,
-														p3, t3, c3,
-														p2, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p0, t0, c0,
+															p1, t1, c1,
+															p3, t3, c3,
+															p2, t2, c2);
 	// top
-	PushQuad(gameRenderCommands, renderGroup, bitmap,	p4, t0, c0,
-														p5, t1, c1,
-														p1, t3, c3,
-														p0, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p4, t0, c0,
+															p5, t1, c1,
+															p1, t3, c3,
+															p0, t2, c2);
 	// left 
-	PushQuad(gameRenderCommands, renderGroup, bitmap,	p4, t0, c0,
-														p0, t1, c1,
-														p2, t3, c3,
-														p6, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p4, t0, c0,
+															p0, t1, c1,
+															p2, t3, c3,
+															p6, t2, c2);
 	// bottom
-	PushQuad(gameRenderCommands, renderGroup, bitmap,	p2, t0, c0,
-														p3, t1, c1,
-														p7, t3, c3,
-														p6, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p2, t0, c0,
+															p3, t1, c1,
+															p7, t3, c3,
+															p6, t2, c2);
 	// right 
-	PushQuad(gameRenderCommands, renderGroup, bitmap,	p1, t0, c0,
-														p5, t1, c1,
-														p7, t3, c3,
-														p3, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p1, t0, c0,
+															p5, t1, c1,
+															p7, t3, c3,
+															p3, t2, c2);
 	// back
-	PushQuad(gameRenderCommands, renderGroup, bitmap,	p5, t0, c0,
-														p4, t1, c1,
-														p6, t3, c3,
-														p7, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p5, t0, c0,
+															p4, t1, c1,
+															p6, t3, c3,
+															p7, t2, c2);
 }	
 
 
@@ -507,8 +502,8 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 
 	if (!isDebugMode)
 	{
-		float dx = gameInputState->mouseX - windowDimensions.x / 2;
-		float dy = gameInputState->mouseY - windowDimensions.y / 2;
+		float dx = gameInputState->mousePos.x - windowDimensions.x / 2;
+		float dy = gameInputState->mousePos.y - windowDimensions.y / 2;
 		
 		if (dx != 0)
 		{
@@ -733,7 +728,6 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 		debugLoadedFont = GetFont(transientState->assets, debugFontId);
 
 
-
 		transientState->isInitalized = true;
 	}
 
@@ -743,6 +737,113 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 
 
 
+void AllocateDebugFrame(DebugFrame* debugFrame, MemoryArena* memoryArena)
+{
+	debugFrame->beginClock = 0;
+	debugFrame->endClock = 0;
+	debugFrame->wallSecondsElapsed = 0.0f;
+	debugFrame->rootProfileNode = new ProfileNode(-1);
+}
+
+
+void AllocateDebugFrames(DebugState* debugState)
+{
+	debugState->frames = PushArray(&debugState->collationArena, MAX_DEBUG_EVENT_ARRAY_COUNT, DebugFrame);
+	debugState->numFrames = 0;
+	debugState->collationFrame = 0;
+
+	// allocating DebugFrame
+	for (int i = 0; i < MAX_DEBUG_EVENT_ARRAY_COUNT; i++)
+	{
+		AllocateDebugFrame(&debugState->frames[i], &debugState->collationArena);
+	}
+}
+
+
+void RestartCollation(DebugState* debugState)
+{
+	debugState->numFrames = 0;
+	debugState->collationFrame = 0;
+}
+
+void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCommands, 
+						RenderGroup* renderGroup, GameAssets* gameAssets, glm::ivec2 mousePos)
+{
+
+	// we have lanes for our threads 
+	// handmade hero day254 24:52
+	float halfWidth = gameRenderCommands->settings.dims.x / 2.0f;
+	float halfHeight = gameRenderCommands->settings.dims.y / 2.0f;
+
+	BitmapId bitmapID = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Default);
+	LoadedBitmap* defaultBitmap = GetBitmap(gameAssets, bitmapID);
+
+	glm::vec3 profileRectDim = glm::vec3(200, 100, 0);
+	glm::vec3 profileRectMin = glm::vec3(-halfWidth, halfHeight - profileRectDim.y, 0);
+	glm::vec3 profileRectMax = profileRectMin + profileRectDim;
+	// background
+	PushBitmap(gameRenderCommands, renderGroup, defaultBitmap, glm::vec4(0, 0, 0.25, 0.25), profileRectMin,
+													glm::vec3(profileRectDim.x / 2.0, profileRectDim.y / 2.0, 0), AlignmentMode::Left, AlignmentMode::Bottom);
+
+	if (debugState->mostRecentFrame != NULL)
+	{
+		ProfileNode* root = debugState->mostRecentFrame->rootProfileNode;
+
+		float frameSpan = root->duration;
+		float pixelSpan = profileRectDim.x;
+
+		float scale = 0.0f;
+		if (frameSpan > 0)
+		{
+			scale = pixelSpan / frameSpan;
+		}
+
+
+		uint32 numLanes = debugState->threads.size();
+		float laneHeight = 0.0f;
+		if (numLanes > 0)
+		{
+			laneHeight = profileRectDim.y / numLanes;
+		}
+
+
+
+		glm::vec4 colors[] = {
+			glm::vec4(1,0,0,1),
+			glm::vec4(0,1,0,1),
+			glm::vec4(0,0,1,1),
+
+			glm::vec4(1,1,0,1),
+			glm::vec4(0,1,1,1),
+			glm::vec4(1,0,1,1)
+		};
+
+
+
+		// the more recent ones are at the top
+		for (uint32 i = 0; i < root->children.size(); i++)
+		{
+			ProfileNode* node = root->children[i];
+			glm::vec4 color = colors[i % ArrayCount(colors)];
+			
+			glm::vec3 rectMin, rectMax;
+
+			rectMin.x = profileRectMin.x + scale * node->parentRelativeClock;
+			rectMax.x = rectMin.x + scale * node->duration;
+
+			uint32 laneIndex = 0;
+			rectMin.y = profileRectMax.y - (laneIndex + 1) * laneHeight;
+			rectMax.y = profileRectMax.y - laneIndex * laneHeight;
+
+			PushBitmap(gameRenderCommands, renderGroup, defaultBitmap, color, rectMin,
+					glm::vec3(profileRectDim.x / 2.0, profileRectDim.y / 2.0, 0), AlignmentMode::Left, AlignmentMode::Top);
+		
+			// if mouse in region
+		
+		}
+	}
+
+}
 
 
 extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gameMemory, 
@@ -753,6 +854,19 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	DebugState* debugState = (DebugState*)gameMemory->debugStorage;
 	if (!debugState->isInitalized)
 	{
+		uint64 collationArenaSize = Megabytes(32);
+
+		uint8* debugArenaBase = (uint8*)gameMemory->debugStorage + sizeof(DebugState);
+		MemoryIndex debugArenaSize = gameMemory->debugStorageSize - sizeof(DebugState) - collationArenaSize;
+		debugState->debugArena.Init(debugArenaBase, debugArenaSize);
+
+		debugState->renderGroup = PushStruct(&debugState->debugArena, RenderGroup);
+
+		uint8* collationArenaBase = (uint8*)gameMemory->debugStorage + sizeof(DebugState) + debugArenaSize;
+		debugState->collationArena.Init(collationArenaBase, collationArenaSize);
+
+		AllocateDebugFrames(debugState);
+
 		debugState->isInitalized = true;
 	}
 
@@ -796,7 +910,9 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	int scaledLineGap = (int)(lineGapBetweenNextBaseline * scale);
 
 	float xPos = -halfWidth;
-	int yBaselinePos = halfheight - (int)(ascent * scale);
+//	int yBaselinePos = halfheight - (int)(ascent * scale);
+
+	int yBaselinePos = 0; // halfheight - (int)(ascent * scale);
 
 	// This is essentially following the example from stb library
 	for (int i = 0; i < s.size(); i++)
@@ -850,9 +966,17 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	// we want the ladder 32 bit
 	uint32 numEvents = arrayIndex_eventIndex & 0xFFFFFFFF;
 	
+	// one debug event array is almost a frame worth of stuff
+
+	if (debugState->numFrames >= MAX_DEBUG_EVENT_ARRAY_COUNT)
+	{
+		RestartCollation(debugState);
+	}
 
 	// Assuming we aren't recording debugEvents multithreadedly
-//	ProcessDebugEvents(debugState, globalDebugTable->events[eventArrayIndex], numEvents);
+	ProcessDebugEvents(debugState, globalDebugTable->events[eventArrayIndex], numEvents);
 
-	
+	// Render Debug stuff
+
+	RenderProfileBars(debugState, gameRenderCommands, &group, transientState->assets, gameInputState->mousePos);
 }

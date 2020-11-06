@@ -676,7 +676,7 @@ void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga)
 
 		if (asset->type == AssetDataFormatType::Bitmap)
 		{
-			BitmapId bitmapId = { i };
+			BitmapId bitmapId = { (uint32)i };
 			// std::cout << bitmapId.value << std::endl;
 			LoadBitmapToMemory(ga, bitmapId);
 		}
@@ -687,7 +687,7 @@ void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga)
 		}
 		else if (asset->type == AssetDataFormatType::FontGlyph)
 		{
-			BitmapId bitmapId = { i };
+			BitmapId bitmapId = { (uint32)i };
 			// std::cout << "i " << i << ", bitmapId.value " << bitmapId.value << std::endl;
 			LoadGlyphBitmapToMemory(memoryArena, ga, &loadedFont, bitmapId);
 		
