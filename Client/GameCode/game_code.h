@@ -505,6 +505,7 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 		float dx = gameInputState->mousePos.x - windowDimensions.x / 2;
 		float dy = gameInputState->mousePos.y - windowDimensions.y / 2;
 		
+		/*
 		if (dx != 0)
 		{
 			cout << "dx " << dx << endl;
@@ -513,7 +514,7 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 		{
 			cout << ">>>>> dy " << dy << endl;
 		}
-			
+			*/
 
 		angleXInDeg = dx * 0.05f;
 		angleYInDeg = dy * 0.05f;
@@ -528,25 +529,29 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 			angleYInDeg = -179 - cam->pitch;
 		}
 
+		/*
 		if (angleYInDeg != 0)
 		{
 			cout << "		angleYInDeg " << angleYInDeg << endl;
 		}
-
+		*/
 		cam->pitch += angleYInDeg;
 
+		/*
 		if (angleYInDeg != 0)
 		{
 			cout << "		cam->Pitch " << cam->pitch << endl;
 		}
-
+		*/
 		// angleXInRad = angleXInDeg * 3.14f / 180.0f;
 		// angleYInRad = angleYInDeg * 3.14f / 180.0f;
 
+		/*
 		if (dx != 0)
 		{
 			cout << "angleXInDeg " << angleXInDeg << endl;
 		}
+		*/
 		/*
 		if (dy != 0)
 		{
@@ -648,16 +653,16 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 extern DebugTable* globalDebugTable;
 
 
-extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory, GameInputState* gameInputState, GameRenderCommands* gameRenderCommands, 
-														glm::ivec2 windowDimensions, bool isDebugMode)
+extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory, GameInputState* gameInputState, GameRenderCommands* gameRenderCommands,
+	glm::ivec2 windowDimensions, bool isDebugMode)
 {
-//	cout << "Update And Render-2" << endl;
+	//	cout << "Update And Render-2" << endl;
 
-	// so all my game state resides in memory
-	
-	// initalize, just init 20 randome entities
+		// so all my game state resides in memory
 
-	// allocate memroy for entities
+		// initalize, just init 20 randome entities
+
+		// allocate memroy for entities
 
 	if (gameInputState->moveForward.endedDown)
 	{
@@ -693,18 +698,18 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 		{
 			gameState->entities[i].pos = glm::vec3(5 - i, 5 - i, 5 - i);
 			//			cout << i << ": " << gameState->entities[i].pos << std::endl;
- 		}
+		}
 
 		gameState->camera = {};
 		gameState->camera.position = glm::vec3(0, 5, 20);
 		gameState->camera.xAxis = glm::vec3(1.0, 0.0, 0.0);
 		gameState->camera.yAxis = glm::vec3(0.0, 1.0, 0.0);
 		gameState->camera.zAxis = glm::vec3(0.0, 0.0, 1.0);
-		
+
 		gameState->mouseIsDebugMode = false;
 
 
-		uint8* base = (uint8*) gameMemory->permenentStorage + sizeof(GameState);
+		uint8* base = (uint8*)gameMemory->permenentStorage + sizeof(GameState);
 		MemoryIndex size = gameMemory->permenentStorageSize - sizeof(GameState);
 		gameState->memoryArena.Init(base, size);
 
@@ -720,7 +725,7 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 		uint8* base = (uint8*)gameMemory->transientStorage + sizeof(TransientState);
 		MemoryIndex size = gameMemory->transientStorageSize - sizeof(TransientState);
 		transientState->memoryArena.Init(base, size);
-	
+
 		transientState->assets = PushStruct(&transientState->memoryArena, GameAssets);
 		AllocateGameAssets(&transientState->memoryArena, transientState->assets);
 
@@ -731,6 +736,13 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 		transientState->isInitalized = true;
 	}
 
+	/*
+	for (int i = 0; i < 200; i++)
+	{
+		int a = 1;
+		std::cout << "nice " << std::endl;
+	}
+	*/
 
 	WorldTickAndRender(gameState, transientState->assets, gameInputState, gameRenderCommands, windowDimensions, isDebugMode);
 }
@@ -743,6 +755,8 @@ void AllocateDebugFrame(DebugFrame* debugFrame, MemoryArena* memoryArena)
 	debugFrame->endClock = 0;
 	debugFrame->wallSecondsElapsed = 0.0f;
 	debugFrame->rootProfileNode = new ProfileNode(-1);
+
+	std::cout << "debugFrame->rootProfileNode " << debugFrame->rootProfileNode << std::endl;
 }
 
 
@@ -750,6 +764,7 @@ void AllocateDebugFrames(DebugState* debugState)
 {
 	debugState->frames = PushArray(&debugState->collationArena, MAX_DEBUG_EVENT_ARRAY_COUNT, DebugFrame);
 	debugState->numFrames = 0;
+	debugState->maxFrames = MAX_DEBUG_EVENT_ARRAY_COUNT;
 	debugState->collationFrame = 0;
 
 	// allocating DebugFrame
@@ -785,8 +800,12 @@ void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCom
 	PushBitmap(gameRenderCommands, renderGroup, defaultBitmap, glm::vec4(0, 0, 0.25, 0.25), profileRectMin,
 													glm::vec3(profileRectDim.x / 2.0, profileRectDim.y / 2.0, 0), AlignmentMode::Left, AlignmentMode::Bottom);
 
+	//cout << "RenderProfileBars " << endl;
 	if (debugState->mostRecentFrame != NULL)
 	{
+		debugState->mostRecentFrame->PrintDebug();
+
+
 		ProfileNode* root = debugState->mostRecentFrame->rootProfileNode;
 
 		float frameSpan = root->duration;
@@ -819,7 +838,7 @@ void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCom
 		};
 
 
-
+		cout << "root->children " << root->children.size() << endl;
 		// the more recent ones are at the top
 		for (uint32 i = 0; i < root->children.size(); i++)
 		{
@@ -834,9 +853,20 @@ void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCom
 			uint32 laneIndex = 0;
 			rectMin.y = profileRectMax.y - (laneIndex + 1) * laneHeight;
 			rectMax.y = profileRectMax.y - laneIndex * laneHeight;
+			
+			glm::vec3 dim = rectMax - rectMin;
 
-			PushBitmap(gameRenderCommands, renderGroup, defaultBitmap, color, rectMin,
-					glm::vec3(profileRectDim.x / 2.0, profileRectDim.y / 2.0, 0), AlignmentMode::Left, AlignmentMode::Top);
+			float zOffset = 1;
+
+			std::cout << "rectMin " << rectMin << std::endl;
+			std::cout << "rectMax " << rectMax << std::endl;
+
+			std::cout << "dim " << dim << std::endl;
+		//	std::cout << "node->parentRelativeClock " << node->parentRelativeClock;
+		//	std::cout << "node->duration " << node->duration;
+
+			PushBitmap(gameRenderCommands, renderGroup, defaultBitmap, color, glm::vec3(rectMin.x, rectMin.y, zOffset),
+					glm::vec3(dim.x / 2.0, dim.y / 2.0, 0), AlignmentMode::Left, AlignmentMode::Bottom);
 		
 			// if mouse in region
 		
@@ -866,6 +896,8 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 		debugState->collationArena.Init(collationArenaBase, collationArenaSize);
 
 		AllocateDebugFrames(debugState);
+		debugState->threads = std::vector<DebugThread>();		
+		debugState->debugElements = std::vector<DebugElement>();
 
 		debugState->isInitalized = true;
 	}
@@ -947,25 +979,24 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 		}
 	}
 
-	cout << "Before globalDebugTable->currentEventArrayIndex " << globalDebugTable->currentEventArrayIndex << endl;
-	// we change the array we want to write to
-	globalDebugTable->currentEventArrayIndex = !globalDebugTable->currentEventArrayIndex;
 
-	cout << "		After globalDebugTable->currentEventArrayIndex " << globalDebugTable->currentEventArrayIndex << endl;
+	uint64 arrayIndex_eventIndex = globalDebugTable->eventArrayIndex_EventIndex;
 
-
-	// atomically reset the event index to zero. OBVIOUSLY we have to atomically write it  
-	uint64 arrayIndex_eventIndex = globalDebugTable->currentEventArrayIndex;
-	globalDebugTable->eventArrayIndex_EventIndex = (uint64)(globalDebugTable->currentEventArrayIndex << 32);
-
-
-	
 	// get the top 32 bit
 	uint32 eventArrayIndex = arrayIndex_eventIndex >> 32;
-
 	// we want the ladder 32 bit
 	uint32 numEvents = arrayIndex_eventIndex & 0xFFFFFFFF;
-	
+	cout << "		before eventArrayIndex " << eventArrayIndex << ", numEvents " << numEvents << endl;
+
+	// we change the array we want to write to
+	uint64 newEventArrayIndex = !eventArrayIndex;
+	globalDebugTable->eventArrayIndex_EventIndex = (uint64)(newEventArrayIndex << 32);
+
+	uint32 eventArrayIndex2 = globalDebugTable->eventArrayIndex_EventIndex >> 32;
+	uint32 numEvents2 = globalDebugTable->eventArrayIndex_EventIndex & 0xFFFFFFFF;
+	cout << "		after new eventArrayIndex " << eventArrayIndex2 << ", numEvents " << numEvents2 << endl;
+
+
 	// one debug event array is almost a frame worth of stuff
 
 	if (debugState->numFrames >= MAX_DEBUG_EVENT_ARRAY_COUNT)
@@ -974,9 +1005,11 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	}
 
 	// Assuming we aren't recording debugEvents multithreadedly
+	cout << "		before eventArrayIndex " << eventArrayIndex << ", numEvents " << numEvents << endl;
 	ProcessDebugEvents(debugState, globalDebugTable->events[eventArrayIndex], numEvents);
 
 	// Render Debug stuff
 
 	RenderProfileBars(debugState, gameRenderCommands, &group, transientState->assets, gameInputState->mousePos);
+
 }

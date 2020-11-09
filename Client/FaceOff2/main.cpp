@@ -495,13 +495,6 @@ int main(int argc, char *argv[])
 			gameRenderCommands.masterBitmapArray = (LoadedBitmap**)bitmapArrayBuffer;
 			gameRenderCommands.numBitmaps = 0;
 
-			
-			cout << "frame " << frame << endl;
-
-			if (frame == 1)
-			{
-				int a = 1;
-			}
 
 			BEGIN_BLOCK("Game Update");
 			// there was no way for me to debug this way.
@@ -535,8 +528,17 @@ int main(int argc, char *argv[])
 			double measuredSecondsPerFrame = SDLGetSecondsElapsed(lastCounter, endCounter, globalPerfCountFrequency);
 			
 		//	cout << measuredSecondsPerFrame << endl;
-			lastCounter = endCounter;
 
+
+			cout << ">>>>>>> frame " << frame << endl;
+
+			if (frame == 1)
+			{
+				int a = 1;
+			}
+
+			FRAME_MARKER(measuredSecondsPerFrame);
+			lastCounter = endCounter;
 			frame++;
 		}
 	}

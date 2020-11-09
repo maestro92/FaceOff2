@@ -20,14 +20,15 @@ struct DebugEvent
 	uint16 threadId;
 	uint16 coreIndex;
 	uint8 type;
+	float value;
 };
 
 
 #define RecordDebugEvent(eventType, GUIDInit)	\
-	uint64 eventArrayIndex_eventIndex = ++globalDebugTable->eventArrayIndex_EventIndex;	\
+	uint64 eventArrayIndex_eventIndex = globalDebugTable->eventArrayIndex_EventIndex++;	\
 	uint32 arrayIndex = eventArrayIndex_eventIndex >> 32;			\
 	uint32 eventIndex = eventArrayIndex_eventIndex & 0xFFFFFFFF;	\
-	int index = (eventArrayIndex_eventIndex >> 32) + eventIndex;	\
+	cout << "		arrayIndex " << arrayIndex << ", eventIndex " << eventIndex << endl;	\
 	DebugEvent *Event = &globalDebugTable->events[arrayIndex][eventIndex];	\
 	Event->clock = __rdtsc();										\
 	Event->type = (uint8)eventType;									\
@@ -54,11 +55,13 @@ struct DebugEvent
 #define BEGIN_BLOCK(blockName)	BEGIN_BLOCK_(DEBUG_NAME(blockName))
 #define END_BLOCK() END_BLOCK_(DEBUG_NAME("END_BLOCK_"))
 
+#define FRAME_MARKER(secondsElapsedInit)	{RecordDebugEvent(DebugEventType::FrameMarker, DEBUG_NAME("Frame Marker"));	\
+				Event->value = secondsElapsedInit;}
 
 struct DebugTable
 {
 	// everyone is writing into this array 
-	uint32 currentEventArrayIndex;
+	uint32 currentEventArrayIndex;	// do we need this?
 
 	// first 32 biit is arrayIndex, 2nd 32 bit is eventIndex
 	uint64 volatile eventArrayIndex_EventIndex;

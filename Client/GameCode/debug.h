@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <iostream>
 struct DebugElement;
 
 // Represents a begin and closing block
@@ -57,6 +58,11 @@ struct DebugFrame
 
 	// all profile nodes, regardless of threads are under this
 	ProfileNode* rootProfileNode;
+
+	void PrintDebug()
+	{
+		std::cout << "frameIndex " << frameIndex << ", beginClock " << beginClock << " endClock " << endClock << std::endl;
+	}
 };
 
 
@@ -92,6 +98,8 @@ struct DebugThread
 
 struct DebugElement
 {
+//	std::string GUID;
+//	std::string name;
 	char* GUID;
 	char* name;
 	uint32 lineNumber;
@@ -114,6 +122,13 @@ struct DebugElement
 	}
 };
 
+struct HashTable
+{
+	std::unordered_map<std::string, DebugElement> table;		// to be replaced by our own hash table
+};
+
+
+
 
 struct DebugState
 {
@@ -123,6 +138,7 @@ struct DebugState
 	DebugFrame* collationFrame;
 	DebugFrame* mostRecentFrame;
 	MemoryArena collationArena;
+	uint32 maxFrames;
 	uint32 numFrames;
 	DebugFrame* frames;
 
@@ -130,8 +146,9 @@ struct DebugState
 	// we are using a linked list for all the threads.
 	// DebugThread* headThread;
 	std::vector<DebugThread> threads;							// To be replaced by linked list
-	std::unordered_map<std::string, DebugElement> debugElements;		// to be replaced by our own hash table
-
+	// HashTable* debugElements;
+	// std::unordered_map<std::string, DebugElement> debugElements;
+	std::vector<DebugElement> debugElements;
 
 	// a linked list of free blocks. When DebugThreads wants a new OpenDebugBlock
 	// you request it from here.
@@ -142,15 +159,26 @@ struct DebugState
 	RenderGroup* renderGroup;
 	MemoryArena debugArena; 
 
+	void DebugDebugElement()
+	{
+		std::cout << "printing debugElements" << debugElements.size() << std::endl;
+		for (int i = 0; i < debugElements.size(); i++)
+		{
+			std::cout << "		" << debugElements[i].GUID << std::endl;
+		}
+	}
 };
 
 
 
-void initDebugFrame(DebugFrame* debugFrame, uint64 beginClock, MemoryArena* memoryArena)
+void initDebugFrame(DebugFrame* debugFrame, uint64 beginClock, MemoryArena* memoryArena, int frameIndex)
 {
 	debugFrame->beginClock = beginClock;
 	debugFrame->endClock = 0;
 	debugFrame->wallSecondsElapsed = 0.0f;
+	debugFrame->frameIndex = frameIndex;
+
+	debugFrame->rootProfileNode->children.clear();
 }
 
 
@@ -183,25 +211,60 @@ void ProcessFrameMarkerDebugEvent(DebugState* debugState, DebugEvent* event)
 	if (debugState->collationFrame)
 	{		
 		debugState->collationFrame->endClock = event->clock;
-		debugState->numFrames++;
-
 		debugState->mostRecentFrame = debugState->collationFrame;
+		debugState->numFrames++;
 	}
 
-	debugState->collationFrame = &debugState->frames[debugState->numFrames];
-	initDebugFrame(debugState->collationFrame, event->clock, &debugState->collationArena);
+
+	int frameIndex = debugState->numFrames % debugState->maxFrames;
+
+	debugState->collationFrame = &debugState->frames[frameIndex];
+	initDebugFrame(debugState->collationFrame, event->clock, &debugState->collationArena, debugState->numFrames);
+}
+
+
+
+
+DebugElement* FindDebugElement(std::vector<DebugElement> debugElements, DebugEvent* event)
+{
+	DebugElement* result = NULL;
+	for (int i = 0; i < debugElements.size(); i++)
+	{
+		if (AreStringsEqual(debugElements[i].GUID, event->GUID))
+		{
+			result = &debugElements[i];
+			return result;
+		}
+	}
+	return NULL;
 }
 
 
 DebugElement* GetOrCreateDebugElement(DebugState* debugState, DebugEvent* event)
 {
-	if (debugState->debugElements.find(event->GUID) == debugState->debugElements.end())
+	std::string key = std::string(event->GUID);
+
+	debugState->DebugDebugElement();
+	// DebugElement* result = FindDebugElement(debugState->debugElements, event);
+
+	DebugElement* result = NULL;
+	for (int i = 0; i < debugState->debugElements.size(); i++)
+	{
+		if (AreStringsEqual(debugState->debugElements[i].GUID, event->GUID))
+		{
+			result = &debugState->debugElements[i];
+			break;
+		}
+	}
+
+	if (result == NULL)
 	{
 		// we create a new debug element
-		DebugElement newElement(event->GUID);
-		debugState->debugElements[event->GUID] = newElement;
+		debugState->debugElements.emplace_back(event->GUID);
+		int index = debugState->debugElements.size() - 1;
+		result = &debugState->debugElements[index];
 	}
-	return &debugState->debugElements[event->GUID];
+	return result;
 }
 
 
@@ -243,14 +306,13 @@ void ProcessDebugEvents(DebugState* debugState, DebugEvent* debugEventsArray, ui
 		}
 		else if (debugState->collationFrame != NULL)
 		{
-			uint32 frameIndex = debugState->numFrames - 1;
+		//	uint32 frameIndex = debugState->numFrames - 1;
 			int threadId = 1;
 			DebugThread* thread = TryGetOrCreateDebugThread(debugState, threadId);
 			uint64 clockBasis = debugState->collationFrame->beginClock;
 
 			if (event->type == DebugEventType::BeginBlock)
 			{
-				debugState->collationFrame++;
 				DebugElement* element = GetOrCreateDebugElement(debugState, event);
 
 				ProfileNode* profileNode = new ProfileNode(event->threadId);	// Get this from the memory arena
@@ -259,10 +321,13 @@ void ProcessDebugEvents(DebugState* debugState, DebugEvent* debugEventsArray, ui
 
 				uint64 clockBasis = debugState->collationFrame->beginClock;
 
-				OpenDebugBlock* debugBlock = AddTopOpenDebugBlock(debugState, thread);
-				InitOpenDebugBlock(debugBlock, frameIndex, profileNode, event);
 
-				ProfileNode* parentProfileNode;
+				if (debugState->collationFrame->frameIndex == 8)
+				{
+					int a = 1;
+				}
+
+				ProfileNode* parentProfileNode = NULL;
 				if (thread->CurrentlyHasAnOpenBlock())
 				{
 					parentProfileNode = thread->GetTopOpenBlock()->profileNode;
@@ -270,14 +335,28 @@ void ProcessDebugEvents(DebugState* debugState, DebugEvent* debugEventsArray, ui
 				else
 				{
 					parentProfileNode = debugState->collationFrame->rootProfileNode;
+					int a = 1;
 				}
-				
+
+				std::cout << "begin block" << std::endl;
+				std::cout << "collationframe " << debugState->collationFrame->frameIndex << std::endl;
+				if (debugState->collationFrame->frameIndex == 8)
+				{
+					int a = 1;
+				}
 				parentProfileNode->AddChild(profileNode);
+
+
+
+				OpenDebugBlock* debugBlock = AddTopOpenDebugBlock(debugState, thread);
+				InitOpenDebugBlock(debugBlock, debugState->collationFrame->frameIndex, profileNode, event);
+
+
 			}
 			else if (event->type == DebugEventType::EndBlock)
 			{
 				assert(debugState->collationFrame);
-				uint32 frameIndex = debugState->numFrames - 1;
+			//	uint32 frameIndex = debugState->numFrames - 1;
 
 				uint64 relativeClock = event->clock - debugState->collationFrame->beginClock;
 
@@ -291,6 +370,9 @@ void ProcessDebugEvents(DebugState* debugState, DebugEvent* debugEventsArray, ui
 						RemoveTopOpenDebugBlock(debugState, thread);
 					}
 				}
+
+				std::cout << "end block" << std::endl;
+
 			}
 			else
 			{

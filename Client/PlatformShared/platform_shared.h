@@ -68,6 +68,27 @@ typedef unsigned int(*PlatformAllocateTexture2)(uint32 width, uint32 height, voi
 
 
 
+inline bool AreStringsEqual(const char *A, const char *B)
+{
+	// First check if they are pointing to the same pointer?
+	bool result = (A == B);
+
+	if (A && B)
+	{
+		while (*A && *B && (*A == *B))
+		{
+			++A;
+			++B;
+		}
+
+		result = ((*A == 0) && (*B == 0));
+	}
+
+	return(result);
+}
+
+
+
 enum GameInputMouseButton
 {
 	PlatformMouseButton_Left,
