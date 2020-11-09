@@ -50,7 +50,7 @@ struct DebugFrame
 {
 	uint64 beginClock;
 	uint64 endClock;
-	uint32 wallSecondsElapsed;
+	float wallSecondsElapsed;
 
 	uint32 numProfileBlocks;
 
@@ -159,7 +159,7 @@ struct DebugState
 	RenderGroup* renderGroup;
 	MemoryArena debugArena; 
 
-	void DebugDebugElement()
+	void PrintDebugElement()
 	{
 		std::cout << "printing debugElements" << debugElements.size() << std::endl;
 		for (int i = 0; i < debugElements.size(); i++)
@@ -211,8 +211,19 @@ void ProcessFrameMarkerDebugEvent(DebugState* debugState, DebugEvent* event)
 	if (debugState->collationFrame)
 	{		
 		debugState->collationFrame->endClock = event->clock;
+		if (debugState->collationFrame->rootProfileNode)
+		{
+			debugState->collationFrame->rootProfileNode->duration = debugState->collationFrame->endClock - debugState->collationFrame->beginClock;
+		}
+
+		debugState->collationFrame->wallSecondsElapsed = event->wallSecondsElapsed;
+
 		debugState->mostRecentFrame = debugState->collationFrame;
 		debugState->numFrames++;
+
+	//	std::cout << "wallSecondsElapsed " << event->wallSecondsElapsed << std::endl;
+	//	std::cout << "debugState->collationFrame->wallSecondsElapsed " << debugState->collationFrame->wallSecondsElapsed << std::endl;
+
 	}
 
 
@@ -244,7 +255,7 @@ DebugElement* GetOrCreateDebugElement(DebugState* debugState, DebugEvent* event)
 {
 	std::string key = std::string(event->GUID);
 
-	debugState->DebugDebugElement();
+	// debugState->PrintDebugElement();
 	// DebugElement* result = FindDebugElement(debugState->debugElements, event);
 
 	DebugElement* result = NULL;
@@ -309,7 +320,6 @@ void ProcessDebugEvents(DebugState* debugState, DebugEvent* debugEventsArray, ui
 		//	uint32 frameIndex = debugState->numFrames - 1;
 			int threadId = 1;
 			DebugThread* thread = TryGetOrCreateDebugThread(debugState, threadId);
-			uint64 clockBasis = debugState->collationFrame->beginClock;
 
 			if (event->type == DebugEventType::BeginBlock)
 			{
@@ -319,31 +329,21 @@ void ProcessDebugEvents(DebugState* debugState, DebugEvent* debugEventsArray, ui
 				profileNode->parentRelativeClock = event->clock - debugState->collationFrame->beginClock;
 				element->AddProfileNode(profileNode);
 
-				uint64 clockBasis = debugState->collationFrame->beginClock;
-
-
-				if (debugState->collationFrame->frameIndex == 8)
-				{
-					int a = 1;
-				}
+				uint64 clockBasis = 0; 
 
 				ProfileNode* parentProfileNode = NULL;
 				if (thread->CurrentlyHasAnOpenBlock())
 				{
 					parentProfileNode = thread->GetTopOpenBlock()->profileNode;
+					clockBasis = thread->GetTopOpenBlock()->openingEvent.clock;
 				}
 				else
 				{
 					parentProfileNode = debugState->collationFrame->rootProfileNode;
-					int a = 1;
+					clockBasis = debugState->collationFrame->beginClock;
 				}
 
-				std::cout << "begin block" << std::endl;
-				std::cout << "collationframe " << debugState->collationFrame->frameIndex << std::endl;
-				if (debugState->collationFrame->frameIndex == 8)
-				{
-					int a = 1;
-				}
+				parentProfileNode->parentRelativeClock = event->clock - clockBasis;
 				parentProfileNode->AddChild(profileNode);
 
 
@@ -367,11 +367,12 @@ void ProcessDebugEvents(DebugState* debugState, DebugEvent* debugEventsArray, ui
 					if (IsMatchingDebugEvents(matchingBlock->openingEvent, *event))
 					{	
 						matchingBlock->profileNode->duration = (uint32)(event->clock - matchingBlock->openingEvent.clock);
+
 						RemoveTopOpenDebugBlock(debugState, thread);
 					}
 				}
 
-				std::cout << "end block" << std::endl;
+			//	std::cout << "end block" << std::endl;
 
 			}
 			else

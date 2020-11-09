@@ -737,10 +737,9 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 	}
 
 	/*
-	for (int i = 0; i < 200; i++)
+	for (int i = 0; i < 5000; i++)
 	{
-		int a = 1;
-		std::cout << "nice " << std::endl;
+		cout << "nice";
 	}
 	*/
 
@@ -803,7 +802,7 @@ void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCom
 	//cout << "RenderProfileBars " << endl;
 	if (debugState->mostRecentFrame != NULL)
 	{
-		debugState->mostRecentFrame->PrintDebug();
+		// debugState->mostRecentFrame->PrintDebug();
 
 
 		ProfileNode* root = debugState->mostRecentFrame->rootProfileNode;
@@ -838,7 +837,7 @@ void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCom
 		};
 
 
-		cout << "root->children " << root->children.size() << endl;
+		// cout << "root->children " << root->children.size() << endl;
 		// the more recent ones are at the top
 		for (uint32 i = 0; i < root->children.size(); i++)
 		{
@@ -858,18 +857,64 @@ void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCom
 
 			float zOffset = 1;
 
-			std::cout << "rectMin " << rectMin << std::endl;
-			std::cout << "rectMax " << rectMax << std::endl;
-
-			std::cout << "dim " << dim << std::endl;
-		//	std::cout << "node->parentRelativeClock " << node->parentRelativeClock;
-		//	std::cout << "node->duration " << node->duration;
-
 			PushBitmap(gameRenderCommands, renderGroup, defaultBitmap, color, glm::vec3(rectMin.x, rectMin.y, zOffset),
 					glm::vec3(dim.x / 2.0, dim.y / 2.0, 0), AlignmentMode::Left, AlignmentMode::Bottom);
 		
 			// if mouse in region
 		
+		}
+	}
+
+}
+
+
+void DEBUGTextLine(char* s, int size, GameRenderCommands* gameRenderCommands, RenderGroup* group, GameAssets* gameAssets, glm::vec3 position)
+{
+	// how big do we want char to be displayed
+	const float DEBUG_CHAR_BITMAP_SCALE = 1;
+
+	int ascent = 0;
+	int descent = 0;
+	int lineGap = 0;
+	stbtt_GetFontVMetrics(&debugLoadedFont->fontInfo, &ascent, &descent, &lineGap);
+	float scale = stbtt_ScaleForPixelHeight(&debugLoadedFont->fontInfo, FONT_SCALE);
+
+	int lineGapBetweenNextBaseline = (ascent - descent + lineGap);
+	int scaledLineGap = (int)(lineGapBetweenNextBaseline * scale);
+
+	float xPos = position.x;
+	int yBaselinePos = position.y;
+
+	// This is essentially following the example from stb library
+	for (int i = 0; i < size; i++)
+	{
+		int advance, leftSideBearing;
+		stbtt_GetCodepointHMetrics(&debugLoadedFont->fontInfo, s[i], &advance, &leftSideBearing);
+
+		GlyphId glyphID = GetGlyph(gameAssets, debugLoadedFont, s[i]);
+		LoadedGlyph* glyphBitmap = GetGlyph(gameAssets, glyphID);
+
+		if (s[i] == '\n')
+		{
+			xPos = position.x;
+			yBaselinePos -= scaledLineGap;
+		}
+		else
+		{
+			float height = DEBUG_CHAR_BITMAP_SCALE * glyphBitmap->bitmap.height;
+			float width = glyphBitmap->bitmap.width / (float)glyphBitmap->bitmap.height * height;
+
+			int x = xPos + glyphBitmap->bitmapXYOffsets.x;
+			int y = yBaselinePos - glyphBitmap->bitmapXYOffsets.y;
+
+			glm::vec3 leftTopPos = glm::vec3(x, y, 0);
+
+			PushBitmap(gameRenderCommands, group, &glyphBitmap->bitmap, COLOR_WHITE, leftTopPos, glm::vec3(width / 2.0, height / 2.0, 0), AlignmentMode::Left, AlignmentMode::Top);
+
+
+			xPos += (advance * scale);
+			if (i < size)
+				xPos += scale * stbtt_GetCodepointKernAdvance(&debugLoadedFont->fontInfo, s[i], s[i + 1]);
 		}
 	}
 
@@ -926,59 +971,6 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	group.quads->masterBitmapArrayOffset = gameRenderCommands->numBitmaps;
 	group.quads->renderSetup = renderSetup;
 
-	// how big do we want char to be displayed
-	const float DEBUG_CHAR_BITMAP_SCALE = 1;
-
-	string s = "abcdefghijlmnopqrstuvwxyz 123456789\nABCDEFGHIJLMNOPQRSTUVWXYZ";
-	//string s = "Hej ab";
-	
-	int ascent = 0;
-	int descent = 0;
-	int lineGap = 0;
-	stbtt_GetFontVMetrics(&debugLoadedFont->fontInfo, &ascent, &descent, &lineGap);
-	float scale = stbtt_ScaleForPixelHeight(&debugLoadedFont->fontInfo, FONT_SCALE);
-
-	int lineGapBetweenNextBaseline = (ascent - descent + lineGap);
-	int scaledLineGap = (int)(lineGapBetweenNextBaseline * scale);
-
-	float xPos = -halfWidth;
-//	int yBaselinePos = halfheight - (int)(ascent * scale);
-
-	int yBaselinePos = 0; // halfheight - (int)(ascent * scale);
-
-	// This is essentially following the example from stb library
-	for (int i = 0; i < s.size(); i++)
-	{
-		int advance, leftSideBearing;
-		stbtt_GetCodepointHMetrics(&debugLoadedFont->fontInfo, s[i], &advance, &leftSideBearing);
-
-		GlyphId glyphID = GetGlyph(transientState->assets, debugLoadedFont, s[i]);
-		LoadedGlyph* glyphBitmap = GetGlyph(transientState->assets, glyphID);
-
-		if (s[i] == '\n')
-		{
-			xPos = -halfWidth;
-			yBaselinePos -= scaledLineGap;
-		}
-		else
-		{
-			float height = DEBUG_CHAR_BITMAP_SCALE * glyphBitmap->bitmap.height;
-			float width = glyphBitmap->bitmap.width / (float)glyphBitmap->bitmap.height * height;
-
-			int x = xPos + glyphBitmap->bitmapXYOffsets.x;
-			int y = yBaselinePos - glyphBitmap->bitmapXYOffsets.y;
-
-			glm::vec3 leftTopPos = glm::vec3(x, y, 0);
-
-			PushBitmap(gameRenderCommands, &group, &glyphBitmap->bitmap, COLOR_WHITE, leftTopPos, glm::vec3(width / 2.0, height / 2.0, 0), AlignmentMode::Left, AlignmentMode::Top);
-
-			
-			xPos += (advance * scale);
-			if (i < s.size())
-				xPos += scale * stbtt_GetCodepointKernAdvance(&debugLoadedFont->fontInfo, s[i], s[i+1]);
-		}
-	}
-
 
 	uint64 arrayIndex_eventIndex = globalDebugTable->eventArrayIndex_EventIndex;
 
@@ -986,7 +978,7 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	uint32 eventArrayIndex = arrayIndex_eventIndex >> 32;
 	// we want the ladder 32 bit
 	uint32 numEvents = arrayIndex_eventIndex & 0xFFFFFFFF;
-	cout << "		before eventArrayIndex " << eventArrayIndex << ", numEvents " << numEvents << endl;
+	// cout << "		before eventArrayIndex " << eventArrayIndex << ", numEvents " << numEvents << endl;
 
 	// we change the array we want to write to
 	uint64 newEventArrayIndex = !eventArrayIndex;
@@ -994,7 +986,7 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 
 	uint32 eventArrayIndex2 = globalDebugTable->eventArrayIndex_EventIndex >> 32;
 	uint32 numEvents2 = globalDebugTable->eventArrayIndex_EventIndex & 0xFFFFFFFF;
-	cout << "		after new eventArrayIndex " << eventArrayIndex2 << ", numEvents " << numEvents2 << endl;
+	// cout << "		after new eventArrayIndex " << eventArrayIndex2 << ", numEvents " << numEvents2 << endl;
 
 
 	// one debug event array is almost a frame worth of stuff
@@ -1005,11 +997,19 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	}
 
 	// Assuming we aren't recording debugEvents multithreadedly
-	cout << "		before eventArrayIndex " << eventArrayIndex << ", numEvents " << numEvents << endl;
+	// cout << "		before eventArrayIndex " << eventArrayIndex << ", numEvents " << numEvents << endl;
 	ProcessDebugEvents(debugState, globalDebugTable->events[eventArrayIndex], numEvents);
 
 	// Render Debug stuff
 
 	RenderProfileBars(debugState, gameRenderCommands, &group, transientState->assets, gameInputState->mousePos);
 
+
+	if (debugState->mostRecentFrame)
+	{
+		static char buffer[128];
+		int size = sprintf(buffer, "Last frame time: %.02fms", debugState->mostRecentFrame->wallSecondsElapsed * 1000.0f);
+		glm::vec3 startPos = glm::vec3(-halfWidth, halfheight - 120, 1);
+		DEBUGTextLine(buffer, size, gameRenderCommands, &group, transientState->assets, startPos);
+	}
 }

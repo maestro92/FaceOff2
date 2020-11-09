@@ -20,7 +20,7 @@ struct DebugEvent
 	uint16 threadId;
 	uint16 coreIndex;
 	uint8 type;
-	float value;
+	float wallSecondsElapsed;
 };
 
 
@@ -28,7 +28,6 @@ struct DebugEvent
 	uint64 eventArrayIndex_eventIndex = globalDebugTable->eventArrayIndex_EventIndex++;	\
 	uint32 arrayIndex = eventArrayIndex_eventIndex >> 32;			\
 	uint32 eventIndex = eventArrayIndex_eventIndex & 0xFFFFFFFF;	\
-	cout << "		arrayIndex " << arrayIndex << ", eventIndex " << eventIndex << endl;	\
 	DebugEvent *Event = &globalDebugTable->events[arrayIndex][eventIndex];	\
 	Event->clock = __rdtsc();										\
 	Event->type = (uint8)eventType;									\
@@ -56,7 +55,7 @@ struct DebugEvent
 #define END_BLOCK() END_BLOCK_(DEBUG_NAME("END_BLOCK_"))
 
 #define FRAME_MARKER(secondsElapsedInit)	{RecordDebugEvent(DebugEventType::FrameMarker, DEBUG_NAME("Frame Marker"));	\
-				Event->value = secondsElapsedInit;}
+				Event->wallSecondsElapsed = secondsElapsedInit;}
 
 struct DebugTable
 {
