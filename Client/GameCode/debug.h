@@ -11,6 +11,7 @@ struct DebugElement;
 // Represents a begin and closing block
 struct ProfileNode
 {
+	DebugElement* element;
 	uint16 threadId;
 	uint32 parentRelativeClock;
 	uint32 duration;
@@ -327,6 +328,7 @@ void ProcessDebugEvents(DebugState* debugState, DebugEvent* debugEventsArray, ui
 
 				ProfileNode* profileNode = new ProfileNode(event->threadId);	// Get this from the memory arena
 				profileNode->parentRelativeClock = event->clock - debugState->collationFrame->beginClock;
+				profileNode->element = element;
 				element->AddProfileNode(profileNode);
 
 				uint64 clockBasis = 0; 

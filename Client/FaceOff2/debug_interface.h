@@ -41,7 +41,8 @@ struct DebugEvent
 // here we want to concatenate "a b c d". Apparently, the preprocessor automatically concatenates adjacent strings
 // https://stackoverflow.com/questions/5256313/c-c-macro-string-concatenation
 // This is equivalent of handmade hero's UniqueFileCounterString()
-#define GenerateGUID(a,b,c,d)  a "|" #b "|" #c "|" d
+#define GenerateGUID_(a,b,c,d)  a "|" #b "|" #c "|" d
+#define GenerateGUID(a,b,c,d)  GenerateGUID_(a,b,c,d)
 #define DEBUG_NAME(name) GenerateGUID(__FILE__, __LINE__, __COUNTER__, name)
 
 // #define FRAME_MARKER()	\

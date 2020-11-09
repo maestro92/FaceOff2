@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../PlatformShared/platform_shared.h"
+#include "../PlatformShared/collision.h"
+
 #include "debug_interface.h"
 #include "memory.h"
 #include "../FaceOff2/asset.h"
@@ -780,6 +782,13 @@ void RestartCollation(DebugState* debugState)
 	debugState->collationFrame = 0;
 }
 
+
+glm::vec3 PlatformMouseToScreenRenderPos(GameRenderCommands* gameRenderCommands, glm::ivec2 mousePos)
+{
+	float halfWidth = gameRenderCommands->settings.dims.x / 2.0f;
+	float halfHeight = gameRenderCommands->settings.dims.y / 2.0f;
+	return glm::vec3(mousePos.x - halfWidth, mousePos.y - halfHeight, 0);
+}
 void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCommands, 
 						RenderGroup* renderGroup, GameAssets* gameAssets, glm::ivec2 mousePos)
 {
@@ -861,10 +870,13 @@ void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCom
 					glm::vec3(dim.x / 2.0, dim.y / 2.0, 0), AlignmentMode::Left, AlignmentMode::Bottom);
 		
 			// if mouse in region
-		
+			glm::vec3 screenMousePos = PlatformMouseToScreenRenderPos(gameRenderCommands, mousePos);
+			if (IsPointInsideRect({rectMin, rectMax}, screenMousePos))
+			{
+				std::cout << node->element->GUID << std::endl;
+			}
 		}
 	}
-
 }
 
 

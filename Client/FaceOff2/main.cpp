@@ -503,13 +503,8 @@ int main(int argc, char *argv[])
 			{
 				GameUpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, debugMode);
 			}
-			
-			/*
-			for (int j = 0; j < 5000000; j++)
-			{
-				int a = 1;
-			}
-			*/
+
+
 			END_BLOCK();
 
 			if (SDLCheckForCodeChange(&gameCode))
@@ -523,7 +518,7 @@ int main(int argc, char *argv[])
 				DebugSystemUpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, debugMode);
 			}
 
-			BEGIN_BLOCK("OpenGL Render");
+			BEGIN_BLOCK("Frame Display");
 			/*
 			for (int j = 0; j < 100000000; j++)
 			{
@@ -531,13 +526,8 @@ int main(int argc, char *argv[])
 			}
 			*/			
 			OpenGLRenderCommands(&openGL, &gameRenderCommands, glm::ivec2(0), glm::ivec2(0), windowDimensions);
-			END_BLOCK();
-
 			RendererEndFrame();
-
-
-			GameInputState *temp = newInput;
-
+			END_BLOCK();
 
 			uint64_t endCounter = SDLGetWallClock();
 			double measuredSecondsPerFrame = SDLGetSecondsElapsed(lastCounter, endCounter, globalPerfCountFrequency);
