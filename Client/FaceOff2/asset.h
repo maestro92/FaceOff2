@@ -337,7 +337,7 @@ void LoadBitmapToMemory(GameAssets* ga, BitmapId id)
 	asset->loadedBitmap = result;
 }
 
-int FONT_SCALE = 25;
+int FONT_SCALE = 20;
 
 void LoadGlyphBitmapToMemory(MemoryArena* memoryArena, GameAssets* ga, LoadedFont* loadedFont, BitmapId id)
 {
@@ -660,6 +660,10 @@ void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga)
 	AddCharacterAsset(ga, &loadedFont, '.');
 	AddCharacterAsset(ga, &loadedFont, ':');
 	AddCharacterAsset(ga, &loadedFont, ' ');
+	AddCharacterAsset(ga, &loadedFont, '/');
+	AddCharacterAsset(ga, &loadedFont, '\\');
+	AddCharacterAsset(ga, &loadedFont, '|');
+
 
 	EndAssetFamily(ga);
 

@@ -121,7 +121,7 @@ struct GameInputState
 
 	GameButtonState mouseButtons[PlatformMouseButton_Count];
 	glm::ivec2 mousePos;
-//	float mouseX, mouseY;
+
 	/*
 	// For debugging only;
 	double mouseX, mouseY, mouseZ;

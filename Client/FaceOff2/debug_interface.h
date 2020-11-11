@@ -45,10 +45,6 @@ struct DebugEvent
 #define GenerateGUID(a,b,c,d)  GenerateGUID_(a,b,c,d)
 #define DEBUG_NAME(name) GenerateGUID(__FILE__, __LINE__, __COUNTER__, name)
 
-// #define FRAME_MARKER()	\
-// {RecordDebugEvent}
-
-
 #define BEGIN_BLOCK_(GUID)	{RecordDebugEvent(DebugEventType::BeginBlock, GUID);}
 #define END_BLOCK_(GUID)	{RecordDebugEvent(DebugEventType::EndBlock, GUID);}
 

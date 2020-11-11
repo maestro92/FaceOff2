@@ -5,6 +5,7 @@
 
 #include "debug_interface.h"
 #include "memory.h"
+#include "world.h"
 #include "../FaceOff2/asset.h"
 #include "debug.h"
 
@@ -63,11 +64,6 @@ struct CameraEntity
 	}
 };
 
-struct Entity
-{
-	glm::vec3 pos;
-};
-
 
 
 
@@ -76,10 +72,8 @@ struct Entity
 struct GameState
 {
 	bool isInitalized;
-	Entity entities[1024];
-	int entityCount;
-	int maxEntityCount;
 
+	World world;
 	CameraEntity camera;
 
 	bool mouseIsDebugMode;
@@ -573,10 +567,7 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 	//	cam->SetViewDirection(newViewDir);
 
 
-		// cout << "gameState->camera.dir " << gameState->camera.dir << endl;
-
-
-		// process input
+	// process input
 	float stepSize = 0.5f;
 	if (gameInputState->moveForward.endedDown)
 	{
@@ -616,7 +607,7 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 
 	glm::mat4 cameraTransform = glm::translate(gameState->camera.position);// *cameraRot;
 	float dim = 20;
-	glm::mat4 cameraProj = glm::perspective(45.0f, 800.0f / 640.0f, 0.5f, 1000.0f);
+	glm::mat4 cameraProj = glm::perspective(45.0f, windowDimensions.x / (float)windowDimensions.y, 0.5f, 1000.0f);
 
 
 	// We start a render setup
@@ -635,14 +626,14 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 
 
 
-
-	for (int i = 0; i < gameState->entityCount; i++)
+	World* world = &gameState->world;
+	for (int i = 0; i < world->entityCount; i++)
 	{
-		Entity* entity = &gameState->entities[i];
+		Entity* entity = &world->entities[i];
 
 		BitmapId bitmapID2 = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Wall);
 		LoadedBitmap* bitmap2 = GetBitmap(gameAssets, bitmapID2);
-		PushCube(gameRenderCommands, &group, bitmap2, COLOR_WHITE, entity->pos, glm::vec3(1, 1, 1));
+		PushCube(gameRenderCommands, &group, bitmap2, COLOR_WHITE, entity->pos, entity->dim);
 	}
 
 	float scale = 200;
@@ -693,14 +684,7 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 		platformAPI = gameMemory->platformAPI;
 
 
-		// initlaize the game state  
-		gameState->entityCount = 10;
-		gameState->maxEntityCount = 1024;
-		for (int i = 0; i < gameState->entityCount; i++)
-		{
-			gameState->entities[i].pos = glm::vec3(5 - i, 5 - i, 5 - i);
-			//			cout << i << ": " << gameState->entities[i].pos << std::endl;
-		}
+		initWorld(&gameState->world);
 
 		gameState->camera = {};
 		gameState->camera.position = glm::vec3(0, 5, 20);
@@ -789,6 +773,64 @@ glm::vec3 PlatformMouseToScreenRenderPos(GameRenderCommands* gameRenderCommands,
 	float halfHeight = gameRenderCommands->settings.dims.y / 2.0f;
 	return glm::vec3(mousePos.x - halfWidth, mousePos.y - halfHeight, 0);
 }
+
+
+
+void DEBUGTextLine(char* s, GameRenderCommands* gameRenderCommands, RenderGroup* group, GameAssets* gameAssets, glm::vec3 position)
+{
+	// how big do we want char to be displayed
+	const float DEBUG_CHAR_BITMAP_SCALE = 1;
+
+	int ascent = 0;
+	int descent = 0;
+	int lineGap = 0;
+	stbtt_GetFontVMetrics(&debugLoadedFont->fontInfo, &ascent, &descent, &lineGap);
+	float scale = stbtt_ScaleForPixelHeight(&debugLoadedFont->fontInfo, FONT_SCALE);
+
+	int lineGapBetweenNextBaseline = (ascent - descent + lineGap);
+	int scaledLineGap = (int)(lineGapBetweenNextBaseline * scale);
+
+	float xPos = position.x;
+	int yBaselinePos = position.y;
+
+	// This is essentially following the example from stb library
+//	for (int i = 0; i < size; i++)
+
+	int i = 0;
+	while (s[i] != '\0')
+	{
+		int advance, leftSideBearing;
+		stbtt_GetCodepointHMetrics(&debugLoadedFont->fontInfo, s[i], &advance, &leftSideBearing);
+
+		GlyphId glyphID = GetGlyph(gameAssets, debugLoadedFont, s[i]);
+		LoadedGlyph* glyphBitmap = GetGlyph(gameAssets, glyphID);
+
+		if (s[i] == '\n')
+		{
+			xPos = position.x;
+			yBaselinePos -= scaledLineGap;
+		}
+		else
+		{
+			float height = DEBUG_CHAR_BITMAP_SCALE * glyphBitmap->bitmap.height;
+			float width = glyphBitmap->bitmap.width / (float)glyphBitmap->bitmap.height * height;
+
+			int x = xPos + glyphBitmap->bitmapXYOffsets.x;
+			int y = yBaselinePos - glyphBitmap->bitmapXYOffsets.y;
+
+			glm::vec3 leftTopPos = glm::vec3(x, y, 0.2);
+
+			PushBitmap(gameRenderCommands, group, &glyphBitmap->bitmap, COLOR_WHITE, leftTopPos, glm::vec3(width / 2.0, height / 2.0, 0), AlignmentMode::Left, AlignmentMode::Top);
+
+
+			xPos += (advance * scale);
+			xPos += scale * stbtt_GetCodepointKernAdvance(&debugLoadedFont->fontInfo, s[i], s[i + 1]);
+		}
+		i++;
+	}
+
+}
+
 void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCommands, 
 						RenderGroup* renderGroup, GameAssets* gameAssets, glm::ivec2 mousePos)
 {
@@ -864,7 +906,7 @@ void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCom
 			
 			glm::vec3 dim = rectMax - rectMin;
 
-			float zOffset = 1;
+			float zOffset = 0.1;
 
 			PushBitmap(gameRenderCommands, renderGroup, defaultBitmap, color, glm::vec3(rectMin.x, rectMin.y, zOffset),
 					glm::vec3(dim.x / 2.0, dim.y / 2.0, 0), AlignmentMode::Left, AlignmentMode::Bottom);
@@ -873,65 +915,11 @@ void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCom
 			glm::vec3 screenMousePos = PlatformMouseToScreenRenderPos(gameRenderCommands, mousePos);
 			if (IsPointInsideRect({rectMin, rectMax}, screenMousePos))
 			{
-				std::cout << node->element->GUID << std::endl;
+				DEBUGTextLine(node->element->GUID, gameRenderCommands, renderGroup, gameAssets, screenMousePos);
 			}
 		}
 	}
 }
-
-
-void DEBUGTextLine(char* s, int size, GameRenderCommands* gameRenderCommands, RenderGroup* group, GameAssets* gameAssets, glm::vec3 position)
-{
-	// how big do we want char to be displayed
-	const float DEBUG_CHAR_BITMAP_SCALE = 1;
-
-	int ascent = 0;
-	int descent = 0;
-	int lineGap = 0;
-	stbtt_GetFontVMetrics(&debugLoadedFont->fontInfo, &ascent, &descent, &lineGap);
-	float scale = stbtt_ScaleForPixelHeight(&debugLoadedFont->fontInfo, FONT_SCALE);
-
-	int lineGapBetweenNextBaseline = (ascent - descent + lineGap);
-	int scaledLineGap = (int)(lineGapBetweenNextBaseline * scale);
-
-	float xPos = position.x;
-	int yBaselinePos = position.y;
-
-	// This is essentially following the example from stb library
-	for (int i = 0; i < size; i++)
-	{
-		int advance, leftSideBearing;
-		stbtt_GetCodepointHMetrics(&debugLoadedFont->fontInfo, s[i], &advance, &leftSideBearing);
-
-		GlyphId glyphID = GetGlyph(gameAssets, debugLoadedFont, s[i]);
-		LoadedGlyph* glyphBitmap = GetGlyph(gameAssets, glyphID);
-
-		if (s[i] == '\n')
-		{
-			xPos = position.x;
-			yBaselinePos -= scaledLineGap;
-		}
-		else
-		{
-			float height = DEBUG_CHAR_BITMAP_SCALE * glyphBitmap->bitmap.height;
-			float width = glyphBitmap->bitmap.width / (float)glyphBitmap->bitmap.height * height;
-
-			int x = xPos + glyphBitmap->bitmapXYOffsets.x;
-			int y = yBaselinePos - glyphBitmap->bitmapXYOffsets.y;
-
-			glm::vec3 leftTopPos = glm::vec3(x, y, 0);
-
-			PushBitmap(gameRenderCommands, group, &glyphBitmap->bitmap, COLOR_WHITE, leftTopPos, glm::vec3(width / 2.0, height / 2.0, 0), AlignmentMode::Left, AlignmentMode::Top);
-
-
-			xPos += (advance * scale);
-			if (i < size)
-				xPos += scale * stbtt_GetCodepointKernAdvance(&debugLoadedFont->fontInfo, s[i], s[i + 1]);
-		}
-	}
-
-}
-
 
 extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gameMemory, 
 																GameInputState* gameInputState, 
@@ -1021,7 +1009,7 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 	{
 		static char buffer[128];
 		int size = sprintf(buffer, "Last frame time: %.02fms", debugState->mostRecentFrame->wallSecondsElapsed * 1000.0f);
-		glm::vec3 startPos = glm::vec3(-halfWidth, halfheight - 120, 1);
-		DEBUGTextLine(buffer, size, gameRenderCommands, &group, transientState->assets, startPos);
+		glm::vec3 startPos = glm::vec3(-halfWidth, halfheight - 120, 0.2);
+		DEBUGTextLine(buffer, gameRenderCommands, &group, transientState->assets, startPos);
 	}
 }

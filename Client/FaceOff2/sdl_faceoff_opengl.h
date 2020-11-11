@@ -485,12 +485,6 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 	glm::ivec2 drawRegionMax,
 	glm::ivec2 windowDimensions)
 {
-	windowDimensions.x = 800;
-	windowDimensions.y = 640;
-	int w = 800;
-	int h = 640;
-
-
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, windowDimensions.x, windowDimensions.y);
 	
@@ -591,26 +585,6 @@ void OpenGLRenderCommands(OpenGLStuff* openGL, GameRenderCommands* commands, glm
 				glBindTexture(GL_TEXTURE_2D, 0);
 			}
 			break;
-			/*
-			case RenderEntryType_ColoredLines:
-			{
-				// Iterate 
-				curAt += sizeof(RenderEntryColoredLines);
-				RenderEntryColoredLines* entry = (RenderEntryColoredLines*)data;
-
-				int bitmayArrayIndex = entry->masterBitmapArrayOffset;
-				LoadedBitmap* bitmap = commands->masterBitmapArray[bitmayArrayIndex];
-
-				glActiveTexture2(GL_TEXTURE0);
-				glBindTexture(GL_TEXTURE_2D, (GLuint)POINTER_TO_UINT32(bitmap->textureHandle));
-				int offset = entry->masterVertexArrayOffset + i * 4;
-				glDrawArrays(GL_TRIANGLE_STRIP, offset, 4);
-
-				offset = entry->masterVertexArrayOffset;
-				glDrawArrays(GL_LINES, offset, entry->numLinePoints);
-			}
-			break;
-			*/
 		}
 	}
 	UseShaderProgramEnd(&openGL->generalShader);

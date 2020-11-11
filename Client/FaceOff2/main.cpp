@@ -351,13 +351,27 @@ void debugInputs(GameInputState* new_input_state)
 }
 
 
+int ThreadProc(void* parameter)
+{
+	char* stringToPrint = (char*)parameter;
+	while (true)
+	{
+		cout << "stringToPrint " << stringToPrint << endl;
+		SDL_Delay(1000);
+	}
+
+}
+
 
 int main(int argc, char *argv[])
 {
+	SDL_Thread* threadHandle = SDL_CreateThread(ThreadProc, 0, "ThreadStarting");
+	SDL_DetachThread(threadHandle);
+
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC | SDL_INIT_AUDIO);
 
 
-	glm::ivec2 windowDimensions = glm::ivec2(800, 640);
+	glm::ivec2 windowDimensions = glm::ivec2(1024, 768);
 
 	// glm::ivec2(1920, 1080);
 
@@ -519,12 +533,8 @@ int main(int argc, char *argv[])
 			}
 
 			BEGIN_BLOCK("Frame Display");
-			/*
-			for (int j = 0; j < 100000000; j++)
-			{
-				int a = 1;
-			}
-			*/			
+
+
 			OpenGLRenderCommands(&openGL, &gameRenderCommands, glm::ivec2(0), glm::ivec2(0), windowDimensions);
 			RendererEndFrame();
 			END_BLOCK();
