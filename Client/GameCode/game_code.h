@@ -3,7 +3,7 @@
 #include "../PlatformShared/platform_shared.h"
 #include "../PlatformShared/collision.h"
 
-#include "debug_interface.h"
+//#include "debug_interface.h"
 #include "memory.h"
 #include "world.h"
 #include "../FaceOff2/asset.h"
@@ -241,6 +241,7 @@ void PushBitmap(GameRenderCommands* gameRenderCommands,
 
 
 
+
 void PushCube(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, LoadedBitmap* bitmap, glm::vec4 color, glm::vec3 entityPosition, glm::vec3 dim)
 {
 	// push the 6 sides
@@ -287,41 +288,41 @@ void PushCube(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, 
 	glm::vec2 t2 = glm::vec2(0, 1);
 	glm::vec2 t3 = glm::vec2(1, 1);
 
-	glm::vec4 c0 = color;
-	glm::vec4 c1 = color;
-	glm::vec4 c2 = color;
-	glm::vec4 c3 = color;
+	glm::vec4 topColor = color;
+	glm::vec4 bottomColor = color * 0.1;
+	bottomColor.a = 1;
+
 
 	// front
-	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p0, t0, c0,
-															p1, t1, c1,
-															p3, t3, c3,
-															p2, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p0, t0, topColor,
+															p1, t1, topColor,
+															p3, t3, bottomColor,
+															p2, t2, bottomColor);
 	// top
-	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p4, t0, c0,
-															p5, t1, c1,
-															p1, t3, c3,
-															p0, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p4, t0, topColor,
+															p5, t1, topColor,
+															p1, t3, topColor,
+															p0, t2, topColor);
 	// left 
-	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p4, t0, c0,
-															p0, t1, c1,
-															p2, t3, c3,
-															p6, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p4, t0, topColor,
+															p0, t1, topColor,
+															p2, t3, bottomColor,
+															p6, t2, bottomColor);
 	// bottom
-	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p2, t0, c0,
-															p3, t1, c1,
-															p7, t3, c3,
-															p6, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p2, t0, bottomColor,
+															p3, t1, bottomColor,
+															p7, t3, bottomColor,
+															p6, t2, bottomColor);
 	// right 
-	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p1, t0, c0,
-															p5, t1, c1,
-															p7, t3, c3,
-															p3, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p1, t0, topColor,
+															p5, t1, topColor,
+															p7, t3, bottomColor,
+															p3, t2, bottomColor);
 	// back
-	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p5, t0, c0,
-															p4, t1, c1,
-															p6, t3, c3,
-															p7, t2, c2);
+	PushQuad_Core(gameRenderCommands, renderGroup, bitmap,	p5, t0, topColor,
+															p4, t1, topColor,
+															p6, t3, bottomColor,
+															p7, t2, bottomColor);
 }	
 
 
@@ -389,6 +390,19 @@ void PushCoordinateSystem(GameRenderCommands* gameRenderCommands, RenderGroup* g
 */
 }
 
+
+
+void PushTreeRecursive(GameRenderCommands* gameRenderCommands, RenderGroup* group, LoadedBitmap* bitmap, BSPNode* node)
+{
+	if (node == NULL)
+	{
+		return;
+	}
+
+	// render the splitting plane
+//	PushTreeRecursive()
+//	PushTreeRecursive()
+}
 
 
 glm::vec3 GetHorizontalVector(glm::vec3 dir, bool left)
@@ -627,7 +641,7 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 
 
 	World* world = &gameState->world;
-	for (int i = 0; i < world->entityCount; i++)
+	for (int i = 0; i < world->numEntities; i++)
 	{
 		Entity* entity = &world->entities[i];
 
@@ -640,6 +654,9 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 	BitmapId bitmapID = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Default);
 	LoadedBitmap* bitmap = GetBitmap(gameAssets, bitmapID);
 	PushCoordinateSystem(gameRenderCommands, &group, bitmap, glm::vec3(0, 0, 0), glm::vec3(scale, scale, scale));
+
+
+	// PushTree(gameRenderCommands, &group, bitmap, glm::vec3(0, 0, 0), glm::vec3(scale, scale, scale));
 }
 
 
@@ -687,7 +704,7 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory* gameMemory
 		initWorld(&gameState->world);
 
 		gameState->camera = {};
-		gameState->camera.position = glm::vec3(0, 5, 20);
+		gameState->camera.position = glm::vec3(0, 140, 77);
 		gameState->camera.xAxis = glm::vec3(1.0, 0.0, 0.0);
 		gameState->camera.yAxis = glm::vec3(0.0, 1.0, 0.0);
 		gameState->camera.zAxis = glm::vec3(0.0, 0.0, 1.0);
@@ -1004,12 +1021,22 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory* gam
 
 	RenderProfileBars(debugState, gameRenderCommands, &group, transientState->assets, gameInputState->mousePos);
 
+	glm::vec3 startPos = glm::vec3(-halfWidth, halfheight - 120, 0.2);
+	static char buffer[128];
+	char* ptr = buffer;
+	int size = 0;
 
 	if (debugState->mostRecentFrame)
 	{
-		static char buffer[128];
-		int size = sprintf(buffer, "Last frame time: %.02fms", debugState->mostRecentFrame->wallSecondsElapsed * 1000.0f);
-		glm::vec3 startPos = glm::vec3(-halfWidth, halfheight - 120, 0.2);
-		DEBUGTextLine(buffer, gameRenderCommands, &group, transientState->assets, startPos);
+		size = sprintf(ptr, "Last frame time: %.02fms", debugState->mostRecentFrame->wallSecondsElapsed * 1000.0f);
+		ptr += size;
 	}
+
+	size = sprintf(ptr, "\n");
+	ptr += size;
+
+	size = sprintf(ptr, "CameraPos is %f %f %f", gameState->camera.position.x, gameState->camera.position.y, gameState->camera.position.z);
+	ptr += size;
+
+	DEBUGTextLine(buffer, gameRenderCommands, &group, transientState->assets, startPos);
 }

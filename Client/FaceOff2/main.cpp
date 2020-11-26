@@ -1,6 +1,7 @@
 
-#include "../PlatformShared/platform_shared.h"
+
 #include "debug_interface.h"
+#include "../PlatformShared/platform_shared.h"
 
 #include "SDL.h"
 #undef main
@@ -15,6 +16,7 @@
 
 #include "../GameCode/game_code.h"
 
+#include "sdl_handmade.h"
 
 bool debugMode;
 bool is_game_running;
@@ -351,29 +353,89 @@ void debugInputs(GameInputState* new_input_state)
 }
 
 
+PlatformWorkQueue workqueue;
+
+struct SDLThreadInfo
+{
+	int threadId;
+};
+
+
+bool TryDoWorkQueueJob(PlatformWorkQueue* workqueue, int threadId)
+{
+	bool didJob = false;
+	if (workqueue->HasOutstandingWork())
+	{
+		// this line is not interlocked
+		PlatformWorkQueue::Job* entry = workqueue->PopNextJob();
+		if (entry != nullptr)
+		{
+			printf("Thread id %d, %s\n", threadId, (char*)entry->data);
+			workqueue->MarkJobCompleted();
+			didJob = true;
+		}
+	}
+	return didJob;
+}
+
+
 int ThreadProc(void* parameter)
 {
-	char* stringToPrint = (char*)parameter;
+	SDLThreadInfo* threadInfo = (SDLThreadInfo*)parameter;
+
 	while (true)
 	{
-		cout << "stringToPrint " << stringToPrint << endl;
-		SDL_Delay(1000);
+		if (TryDoWorkQueueJob(&workqueue, threadInfo->threadId))
+		{
+			//
+		}
+		else
+		{
+			SDL_SemWait(workqueue.semaphoreHandle);
+		}
 	}
-
 }
 
 
 int main(int argc, char *argv[])
 {
-	SDL_Thread* threadHandle = SDL_CreateThread(ThreadProc, 0, "ThreadStarting");
-	SDL_DetachThread(threadHandle);
+	// These threads need to be created outside, instead of inside the for loop
+	// since these threads need to persist 
+	workqueue.init();
+	SDLThreadInfo info[7] = {};
+	for (int i = 0; i < ArrayCount(info); i++)
+	{
+		info[i].threadId = i;
+
+		SDL_Thread* threadHandle = SDL_CreateThread(ThreadProc, 0, &info[i]);
+		SDL_DetachThread(threadHandle);
+	}
+
+	workqueue.AddJob("String 0");
+	workqueue.AddJob("String 1");
+	workqueue.AddJob("String 2");
+	workqueue.AddJob("String 3");
+	workqueue.AddJob("String 4");
+	workqueue.AddJob("String 5");
+	workqueue.AddJob("String 6");
+	workqueue.AddJob("String 7");
+	workqueue.AddJob("String 8");
+	workqueue.AddJob("String 9");
+	workqueue.AddJob("String 10");
+
+	while(!workqueue.AreAllJobsCompleted())
+	{
+		// our main thread is the 8th thread, so we pass in 7
+		TryDoWorkQueueJob(&workqueue, 7);
+	}
+
+
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC | SDL_INIT_AUDIO);
 
 
 	glm::ivec2 windowDimensions = glm::ivec2(1024, 768);
 
-	// glm::ivec2(1920, 1080);
 
 	SDL_Window* window = SDL_CreateWindow("FaceOff 2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowDimensions.x, windowDimensions.y,
 		SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL);
@@ -427,7 +489,7 @@ int main(int argc, char *argv[])
 		gameMemory.debugStorageSize = Megabytes(256);
 
 		gameMemory.debugTable = globalDebugTable;
-
+		gameMemory.workQueue = &workqueue;
 
 		LPVOID baseAddress = 0;
 

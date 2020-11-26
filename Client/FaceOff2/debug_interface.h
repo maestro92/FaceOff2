@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../PlatformShared/platform_shared.h"
+
 #include <iostream>
 
 struct DebugTable;

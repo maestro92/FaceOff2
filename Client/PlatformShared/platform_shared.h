@@ -23,7 +23,7 @@ typedef int64_t int64;
 
 typedef size_t MemoryIndex;
 
-#include "debug_interface.h"
+//#include "debug_interface.h"
 
 #define POINTER_TO_UINT32(pointer) ((uint32)(MemoryIndex)(pointer))
 #define UINT32_TO_POINTER(type, value) (type *)((MemoryIndex)value)
@@ -137,6 +137,7 @@ struct PlatformAPI
 };
 
 struct DebugTable;
+struct PlatformWorkQueue;
 
 struct GameMemory
 {
@@ -152,7 +153,7 @@ struct GameMemory
 	DebugTable* debugTable;
 
 	PlatformAPI platformAPI;
-
+	PlatformWorkQueue* workQueue;
 };
 
 
