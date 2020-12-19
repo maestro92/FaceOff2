@@ -175,8 +175,6 @@ struct RenderEntryClear
 
 struct RenderSetup
 {
-//	glm::mat4 cameraProjectionMatrix;
-//	glm::mat4 cameraTransformMatrix;
 	glm::mat4 transformMatrix;
 };
 
