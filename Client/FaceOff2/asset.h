@@ -663,7 +663,8 @@ void AllocateGameAssets(MemoryArena* memoryArena, GameAssets* ga)
 	AddCharacterAsset(ga, &loadedFont, '/');
 	AddCharacterAsset(ga, &loadedFont, '\\');
 	AddCharacterAsset(ga, &loadedFont, '|');
-
+	AddCharacterAsset(ga, &loadedFont, '-');
+	AddCharacterAsset(ga, &loadedFont, '+');
 
 	EndAssetFamily(ga);
 

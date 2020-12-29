@@ -294,6 +294,31 @@ void SDLProcessPendingEvents(GameInputState* game_input_state)
 					{
 						SDLProcessKeyboardEvent(&game_input_state->moveRight, isDown);
 					}
+
+					else if (keyCode == SDLK_i)
+					{
+						SDLProcessKeyboardEvent(&game_input_state->moveForward2, isDown);
+					}
+					else if (keyCode == SDLK_j)
+					{
+						SDLProcessKeyboardEvent(&game_input_state->moveLeft2, isDown);
+					}
+					else if (keyCode == SDLK_k)
+					{
+						SDLProcessKeyboardEvent(&game_input_state->moveBack2, isDown);
+					}
+					else if (keyCode == SDLK_l)
+					{
+						SDLProcessKeyboardEvent(&game_input_state->moveRight2, isDown);
+					}
+					else if (keyCode == SDLK_u)
+					{
+						SDLProcessKeyboardEvent(&game_input_state->moveUp2, isDown);
+					}
+					else if (keyCode == SDLK_o)
+					{
+						SDLProcessKeyboardEvent(&game_input_state->moveDown2, isDown);
+					}
 					else if (keyCode == SDLK_z)
 					{
 						debugMode = !debugMode;

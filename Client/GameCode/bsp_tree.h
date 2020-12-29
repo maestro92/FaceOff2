@@ -22,7 +22,16 @@ struct Plane
 	{
 		std::cout << "		normal " << normal << ", distance " << distance << std::endl;
 	}
+
+
 };
+
+
+bool PlaneEqual(Plane p0, Plane p1)
+{
+	return p0.normal == p1.normal && p0.distance == p1.distance;
+}
+
 
 struct Edge
 {
@@ -107,27 +116,32 @@ struct Brush
 };
 
 
+int nodeIdCounter;
 struct BSPNode
 {
+	static int idCounter;
 	// node only
+	int id;
 	Plane splitPlane;
 	BspPolygon debugSplitPolygon;	// easier to render 
 
-	BSPNode* frontChild;
-	BSPNode* backChild;
+	// front = 0, back = 1/
+	BSPNode* children[2];
 
 	// leafs only
 	std::vector<Brush> brushes;
 
+
 	glm::vec3 bboxMin;
 	glm::vec3 bboxMax;
 
-	BSPNode() {}
+	BSPNode() { id = nodeIdCounter++; }
 
 	BSPNode(BSPNode* frontTree, BSPNode* backTree)
 	{
-		frontChild = frontTree;
-		backChild = backTree;
+		id = nodeIdCounter++;
+		children[0] = frontTree;
+		children[1] = backTree;
 	}
 
 	bool IsEmpty()
@@ -138,6 +152,11 @@ struct BSPNode
 	bool IsSolid()
 	{
 		return brushes.size() > 0;
+	}
+
+	bool IsLeafNode()
+	{
+		return children[0] == NULL && children[1] == NULL;
 	}
 };
 
@@ -156,6 +175,11 @@ enum SplittingPlaneResult
 	POINT_FRONT,
 	POINT_BACK,
 	POINT_ON_PLANE,
+
+	BRUSH_FRONT,
+	BRUSH_BACK,
+	BRUSH_BOTH,
+	BRUSH_COPLANNAR
 };
 
 SplittingPlaneResult ClassifyPointToPlane(glm::vec3 point, Plane splittingPlane)
@@ -197,6 +221,51 @@ SplittingPlaneResult ClassifyPolygonToPlane(BspPolygon* polygon, Plane splitting
 
 	return SplittingPlaneResult::POLYGON_COPLANNAR;
 }
+
+
+Plane GetOppositeFacingPlane(Plane originalPlane)
+{
+	Plane newPlane = originalPlane;
+
+	if (newPlane.normal.x != 0)
+	{
+		newPlane.normal.x = -newPlane.normal.x;
+	}
+
+	if (newPlane.normal.y != 0)
+	{
+		newPlane.normal.y = -newPlane.normal.y;
+	}
+
+	if (newPlane.normal.z != 0)
+	{
+		newPlane.normal.z = -newPlane.normal.z;
+	}
+
+	newPlane.distance = -newPlane.distance;
+	return newPlane;
+}
+
+SplittingPlaneResult ClassifyBrushToPlane(Brush brush, Plane splittingPlane)
+{
+	std::vector<BspPolygon>& polygons = brush.polygons;
+	for (int i = 0; i < polygons.size(); i++)
+	{
+		if (PlaneEqual(polygons[i].plane, splittingPlane))
+		{
+			return SplittingPlaneResult::BRUSH_BACK;
+		}
+
+		Plane newPlane = GetOppositeFacingPlane(splittingPlane);
+
+		if (PlaneEqual(polygons[i].plane, newPlane))
+		{
+			return SplittingPlaneResult::BRUSH_FRONT;
+		}
+	}
+	return SplittingPlaneResult::NONE;
+}
+
 
 bool IsAxialPlane(Plane plane)
 {
@@ -332,7 +401,7 @@ bool PickSplittingPlane(std::vector<Brush>& brushes, BspPolygon& splitPolygon, P
 	// std::cout << "min " << bb.min << std::endl;
 	// std::cout << "max " << bb.max << std::endl;
 
-	std::cout << "brushes.size() " << brushes.size() << std::endl;
+	// std::cout << "brushes.size() " << brushes.size() << std::endl;
 
 	for (int i = 0; i < brushes.size(); i++)
 	{
@@ -374,8 +443,8 @@ bool PickSplittingPlane(std::vector<Brush>& brushes, BspPolygon& splitPolygon, P
 //	planeFlags[brushIndex][polygonPlaneIndex] = true;
 	// std::cout << "brushIndex " << brushIndex << " polygonPlaneIndex " << polygonPlaneIndex << std::endl;
 	
-	std::cout << "		brush polygonSize" << brushes[brushIndex].polygons.size() << std::endl;
-	std::cout << "		brush usedSize" << brushes[brushIndex].used.size() << std::endl;
+	// std::cout << "		brush polygonSize" << brushes[brushIndex].polygons.size() << std::endl;
+	// std::cout << "		brush usedSize" << brushes[brushIndex].used.size() << std::endl;
 
 	if (found)
 	{
@@ -508,24 +577,66 @@ std::vector<std::vector<bool>> GetPlaneUsedFlags(std::vector<Brush> brushes)
 	return flags;
 }
 
+void PrintBSPTree(BSPNode* node, int depth)
+{
+	if (node == NULL)
+		return;
+
+	printf(">>> print id: %d, depth %d\n", node->id, depth);
+	if (node->IsLeafNode())
+	{
+		printf("	I am leaf node\n");
+	
+		if (node->IsSolid())
+		{
+			printf("	CONTENTS SOLID: ");
+		}
+		else
+		{
+			printf("	CONTENTS EMPTY: ");
+		}
+		
+
+		printf("	count is %d\n", node->brushes.size());
+	/*
+		for (int i = 0; i < node->brushes.size(); i++)
+		{
+			printf();
+		}
+		*/
+
+		printf("\n\n");
+		return;
+	}
+
+	if (node->brushes.size() == 0)
+	{
+		printf("node has no brushes\n");
+	}
+
+
+	PrintBSPTree(node->children[0], depth + 1);
+	PrintBSPTree(node->children[1], depth + 1);
+}
+
+
+void PrintBrushes(std::vector<Brush> brushes)
+{
+	printf("#### brushes size %d\n", brushes.size());
+	for (int i = 0; i < brushes.size(); i++)
+	{
+
+	}
+}
+
+
+
+
+
 BSPNode* BuildBSPTree_r(std::vector<Brush> brushes, int depth)
 {
 	const int MAX_DEPTH = 10;
 	const int MIN_LEAF_SIZE = 20;
-
-	if (brushes.empty())
-		return NULL;
-
-	//	int numPolygons = polygons.size();
-
-		/*
-		// Reconsider this
-		if (depth >= MAX_DEPTH || numPolygons <= MIN_LEAF_SIZE)
-		{
-			return new BSPNode(polygons);
-		}
-		*/
-
 
 
 	std::cout << ">>>>>>>>>>>>>>> Depth is " << depth << std::endl;
@@ -533,75 +644,93 @@ BSPNode* BuildBSPTree_r(std::vector<Brush> brushes, int depth)
 	BspPolygon splitPolygon;
 	Plane splitPlane;
 
-	/*
-	if (depth == 4)
-	{
-		BSPNode* node = new BSPNode();
-		node->brushes = brushes;
-		node->frontChild = NULL;
-		node->backChild = NULL;
-
-		return node;
-	}
-	*/
-
 	bool succeess = PickSplittingPlane(brushes, splitPolygon, splitPlane);
 	if (!succeess)
 	{
+
 		BSPNode* node = new BSPNode();
 		node->brushes = brushes;
-		node->frontChild = NULL;
-		node->backChild = NULL;
+		node->children[0] = NULL;
+		node->children[1] = NULL;
+
+		printf("		Creating leafnode\n");
+		printf("		count is %d\n\n", node->brushes.size());
 
 		return node;
 	}
 
-	std::cout << "	Split Plane " << std::endl;
-	splitPlane.PrintDebug();
-	splitPolygon.PrintDebug();
+	// std::cout << "	Split Plane " << std::endl;
+	// splitPlane.PrintDebug();
+	// splitPolygon.PrintDebug();
 
 	std::vector<Brush> frontBrushes, backBrushes;
 	for (int i = 0; i < brushes.size(); i++)
 	{
+		SplittingPlaneResult brushResult = ClassifyBrushToPlane(brushes[i], splitPlane);
 		Brush frontBrush, backBrush;
-		for (int j = 0; j < brushes[i].polygons.size(); j++)
+
+		if (brushResult == SplittingPlaneResult::BRUSH_BACK)
 		{
-			BspPolygon* polygon = &brushes[i].polygons[j];
-			BspPolygon* frontPart = NULL;
-			BspPolygon* backPart = NULL;
-
-			SplittingPlaneResult result = ClassifyPolygonToPlane(polygon, splitPlane);
-
-			switch (result)
+			backBrush = brushes[i];
+			backBrushes.push_back(backBrush);
+		}
+		else if (brushResult == SplittingPlaneResult::BRUSH_FRONT)
+		{
+			frontBrush = brushes[i];
+			frontBrushes.push_back(frontBrush);
+		}
+		else
+		{
+			for (int j = 0; j < brushes[i].polygons.size(); j++)
 			{
-			case SplittingPlaneResult::POLYGON_FRONT:
-				frontBrush.polygons.push_back(*polygon);
-				frontBrush.used.push_back(brushes[i].used[j]);
-				break;
-			case SplittingPlaneResult::POLYGON_BACK:
-				backBrush.polygons.push_back(*polygon);
-				backBrush.used.push_back(brushes[i].used[j]);
-				break;
-			case SplittingPlaneResult::POLYGON_BOTH:
-				SplitPolygon(*polygon, splitPlane, frontPart, backPart);
-				frontBrush.polygons.push_back(*frontPart);
-				backBrush.polygons.push_back(*backPart);
+				BspPolygon* polygon = &brushes[i].polygons[j];
+				BspPolygon* frontPart = NULL;
+				BspPolygon* backPart = NULL;
 
-				frontBrush.used.push_back(brushes[i].used[j]);
-				backBrush.used.push_back(brushes[i].used[j]);
-				break;
+				SplittingPlaneResult result = ClassifyPolygonToPlane(polygon, splitPlane);
+
+				switch (result)
+				{
+				case SplittingPlaneResult::POLYGON_FRONT:
+					frontBrush.polygons.push_back(*polygon);
+					frontBrush.used.push_back(brushes[i].used[j]);
+					break;
+				case SplittingPlaneResult::POLYGON_BACK:
+					backBrush.polygons.push_back(*polygon);
+					backBrush.used.push_back(brushes[i].used[j]);
+					break;
+				case SplittingPlaneResult::POLYGON_BOTH:
+					SplitPolygon(*polygon, splitPlane, frontPart, backPart);
+					frontBrush.polygons.push_back(*frontPart);
+					backBrush.polygons.push_back(*backPart);
+
+					frontBrush.used.push_back(brushes[i].used[j]);
+					backBrush.used.push_back(brushes[i].used[j]);
+					break;
+				}
+			}
+
+			if (frontBrush.polygons.size() > 0)
+			{
+				frontBrushes.push_back(frontBrush);
+			}
+			if (backBrush.polygons.size() > 0)
+			{
+				backBrushes.push_back(backBrush);
 			}
 		}
-		frontBrushes.push_back(frontBrush);
-		backBrushes.push_back(backBrush);
+
 	}
+
+	PrintBrushes(frontBrushes);
+	PrintBrushes(backBrushes);
 
 	BSPNode* frontTree = BuildBSPTree_r(frontBrushes, depth + 1);
 	BSPNode* backTree = BuildBSPTree_r(backBrushes, depth + 1);
 	BSPNode* node = new BSPNode(frontTree, backTree);
 	node->splitPlane = splitPlane;
 
-	std::cout << "split normal is " << node->splitPlane.normal << std::endl;
+//	std::cout << "split normal is " << node->splitPlane.normal << std::endl;
 
 	if (abs(node->splitPlane.normal.x) != 1 && abs(node->splitPlane.normal.y) != 1 && abs(node->splitPlane.normal.z) != 1)
 	{

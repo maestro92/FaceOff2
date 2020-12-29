@@ -7,6 +7,8 @@
 
 #include "bsp_tree.h"
 
+#define	DIST_EPSILON	(0.03125)
+
 // each face is a quad
 struct Face
 {
@@ -15,10 +17,16 @@ struct Face
 	std::vector<glm::vec3> vertices;
 };
 
-
+enum EntityFlag
+{
+	STATIC,
+	PLAYER
+};
 
 struct Entity
 {
+	EntityFlag flag;
+
 	glm::vec3 pos;
 	glm::vec3 dim;
 
@@ -27,10 +35,27 @@ struct Entity
 	glm::vec3 min;
 	glm::vec3 max;
 
+	glm::vec3 xAxis;
+	glm::vec3 yAxis;
+	glm::vec3 zAxis;
+
+	Entity* groundEntity;
+	Plane plane;
 	// For Rendering
 	// TODO: change this model index
 	std::vector<Face> model;
 };
+
+struct PlayerEntity
+{
+	// consider storing these 4 as a matrix?
+	glm::vec3 position;
+	// camera is viewing along -zAxis
+	glm::vec3 xAxis;
+	glm::vec3 yAxis;
+	glm::vec3 zAxis;
+};
+
 
 struct World
 {
@@ -41,6 +66,12 @@ struct World
 	Entity entities[1024];
 	int numEntities;
 	int maxEntityCount;
+
+
+	int startPlayerEntityId;
+	int maxPlayerEntity;
+	int numPlayerEntity;
+
 };
 
 
@@ -48,8 +79,16 @@ void initEntity(Entity* entity, glm::vec3 pos, std::vector<Face> faces)
 {
 	entity->pos = pos;
 	entity->model = faces;
+	entity->flag = EntityFlag::STATIC;
 }
 
+void initPlayerEntity(Entity* entity, glm::vec3 pos)
+{
+	entity->pos = pos;
+	entity->flag = EntityFlag::PLAYER;
+	entity->min = glm::vec3(-10, -10, -10);
+	entity->max = glm::vec3(10, 10, 10);
+}
 
 std::vector<glm::vec3> GetCubeVertices(glm::vec3 min, glm::vec3 max)
 {
@@ -305,57 +344,6 @@ Brush ConvertFaceToBrush(std::vector<Face> faces)
 	return brush;
 }
 
-/*
-Brush CreateBrushForEntity(Entity* entity)
-{
-	Brush brush;
-	glm::vec3 min = entity->pos - entity->dim;
-	glm::vec3 max = entity->pos + entity->dim;
-
-	std::vector<glm::vec3> vertices = GetCubeVertices(min, max);
-
-	// 4 points on front face 
-	glm::vec3 p0 = vertices[0];
-	glm::vec3 p1 = vertices[1];
-	glm::vec3 p2 = vertices[2];
-	glm::vec3 p3 = vertices[3];
-
-	// 4 points on back face 
-	glm::vec3 p4 = vertices[4];
-	glm::vec3 p5 = vertices[5];
-	glm::vec3 p6 = vertices[6];
-	glm::vec3 p7 = vertices[7];
-
-	// counter clock wise
-	// front
-	glm::vec3 vertices0[4] = {p0, p2, p3, p1};
-	AddPolygonToBrush(&brush, vertices0, glm::vec3(0, 0, 1));
-
-	// top
-	glm::vec3 vertices1[4] = { p4, p0, p1, p5 };
-	AddPolygonToBrush(&brush, vertices1, glm::vec3(0, 1, 0));
-
-	// left 
-	glm::vec3 vertices2[4] = { p4, p6, p2, p0 };
-	AddPolygonToBrush(&brush, vertices2, glm::vec3(-1, 0, 0));
-
-	// bottom
-	glm::vec3 vertices3[4] = { p2, p6, p7, p3 };
-	AddPolygonToBrush(&brush, vertices3, glm::vec3(0, -1, 0));
-
-	// right 
-	glm::vec3 vertices4[4] = { p1, p3, p7, p5 };
-	AddPolygonToBrush(&brush, vertices4, glm::vec3(1, 0, 0));
-
-	// back
-	glm::vec3 vertices5[4] = { p5, p7, p6, p4 };
-	AddPolygonToBrush(&brush, vertices5, glm::vec3(0, 0, -1));
-
-	brush.PrintDebug();
-
-	return brush;
-}
-*/
 
 void CreateAreaA(World* world, std::vector<Brush>& brushes)
 {
@@ -377,13 +365,13 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	pos = glm::vec3(0, 0, 0);
 	dim = glm::vec3(200, 1, 50);
 
-	min = glm::vec3(-200, 0, -200);
-	max = glm::vec3(200, 1, 0);
+	min = glm::vec3(-200, -20, -200);
+	max = glm::vec3(200, 0, 0);
 
 	faces = CreateCubeFaceMinMax(min, max);
 	brushes.push_back(ConvertFaceToBrush(faces));
 	initEntity(entity, pos, faces);
-
+	/*
 	// plane 1 wall 1
 	entity = &world->entities[world->numEntities++];
 	pos = glm::vec3(0, 0, 0);
@@ -570,47 +558,537 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	faces = CreateCubeFaceMinMax(min, max);
 	brushes.push_back(ConvertFaceToBrush(faces));
 	initEntity(entity, pos, faces);
-	
+	*/
 }
 
 
 
-/*
-void CreateAreaB(World* world, glm::vec3 position, glm::vec3 dimensions, std::vector<Brush>& brushes)
+
+void CreateAreaB(World* world, std::vector<Brush>& brushes)
 {
-	float wallHeight = dimensions.y;
-
-	glm::vec3 siteASize = glm::vec3(dimensions.x, wallHeight, dimensions.z);
 	Entity* entity = NULL;
+	std::vector<Face> faces;
 
-	// middle triangle
+	// lower level
+	// Box
 	entity = &world->entities[world->numEntities++];
-	initEntity(entity, position + glm::vec3(0, 0, 0), glm::vec3(5, 40, 5));
-	brushes.push_back(CreateBrushForEntity(entity));
+	glm::vec3 pos;
+	glm::vec3 dim;
+	glm::vec3 min;
+	glm::vec3 max;
 
-	// the ground and the walls
-	entity = &world->entities[world->numEntities++];
-	initEntity(entity, position + glm::vec3(0, 0, 0), glm::vec3(siteASize.x, 1, siteASize.z));
-	brushes.push_back(CreateBrushForEntity(entity));
 
-	entity = &world->entities[world->numEntities++];
-	initEntity(entity, position + glm::vec3(siteASize.x, wallHeight / 2, 0), glm::vec3(1, siteASize.y, siteASize.z));
-	brushes.push_back(CreateBrushForEntity(entity));
 
+	// plane 1
 	entity = &world->entities[world->numEntities++];
-	initEntity(entity, position + glm::vec3(-siteASize.x, wallHeight / 2, 0), glm::vec3(1, siteASize.y, siteASize.z));
-	brushes.push_back(CreateBrushForEntity(entity));
+	pos = glm::vec3(0, 0, 0);
+	dim = glm::vec3(200, 1, 50);
 
-	entity = &world->entities[world->numEntities++];
-	initEntity(entity, position + glm::vec3(0, wallHeight / 2, siteASize.z), glm::vec3(siteASize.x, siteASize.y, 1));
-	brushes.push_back(CreateBrushForEntity(entity));
+	min = glm::vec3(-200, 0, -200);
+	max = glm::vec3(200, 25, 200);
 
+	faces = CreateCubeFaceMinMax(min, max);
+	brushes.push_back(ConvertFaceToBrush(faces));
+	initEntity(entity, pos, faces);
+
+	// bottom wall
 	entity = &world->entities[world->numEntities++];
-	initEntity(entity, position + glm::vec3(0, wallHeight / 2, -siteASize.z), glm::vec3(siteASize.x, siteASize.y, 1));
-	brushes.push_back(CreateBrushForEntity(entity));
+	pos = glm::vec3(0, 0, 0);
+
+	min = glm::vec3(-200, 0, -200);
+	max = glm::vec3(200, 100, -175);
+
+	faces = CreateCubeFaceMinMax(min, max);
+	brushes.push_back(ConvertFaceToBrush(faces));
+	initEntity(entity, pos, faces);
+
+
+	// left wall
+	entity = &world->entities[world->numEntities++];
+	pos = glm::vec3(0, 0, 0);
+	dim = glm::vec3(200, 1, 50);
+
+	min = glm::vec3(-200, 0, -200);
+	max = glm::vec3(-175, 100, 200);
+
+	faces = CreateCubeFaceMinMax(min, max);
+	brushes.push_back(ConvertFaceToBrush(faces));
+	initEntity(entity, pos, faces);
+
+
+	// top wall
+	std::cout << "plane 1 wall 3" << std::endl;
+	entity = &world->entities[world->numEntities++];
+	pos = glm::vec3(0, 0, 0);
+	dim = glm::vec3(200, 1, 50);
+
+	min = glm::vec3(-200, 0, 175);
+	max = glm::vec3(200, 100, 200);
+
+	faces = CreateCubeFaceMinMax(min, max);
+	brushes.push_back(ConvertFaceToBrush(faces));
+	initEntity(entity, pos, faces);
+
+
+
+	// right wall
+	std::cout << "plane 1 wall 4" << std::endl;
+	entity = &world->entities[world->numEntities++];
+	pos = glm::vec3(50, 0, 0);
+	dim = glm::vec3(100, 1, 100);
+
+	min = glm::vec3(175, 0, -200);
+	max = glm::vec3(200, 100, 200);
+
+	faces = CreateCubeFaceMinMax(min, max);
+	brushes.push_back(ConvertFaceToBrush(faces));
+	initEntity(entity, pos, faces);
+
+
+	// in the middle
+	std::cout << "plane 1 wall 4" << std::endl;
+	entity = &world->entities[world->numEntities++];
+	pos = glm::vec3(-50, 0, 0);
+	dim = glm::vec3(100, 1, 100);
+
+	min = glm::vec3(-50, 0, -50);
+	max = glm::vec3(50, 50, 50);
+
+	faces = CreateCubeFaceMinMax(min, max);
+	brushes.push_back(ConvertFaceToBrush(faces));
+	initEntity(entity, pos, faces);
+}
+
+
+
+
+void CreateAreaC(World* world, std::vector<Brush>& brushes)
+{
+	Entity* entity = NULL;
+	std::vector<Face> faces;
+
+	// lower level
+	// Box
+	entity = &world->entities[world->numEntities++];
+	glm::vec3 pos;
+	glm::vec3 dim;
+	glm::vec3 min;
+	glm::vec3 max;
+
+
+	// in the middle
+	std::cout << "plane 1 wall 4" << std::endl;
+	entity = &world->entities[world->numEntities++];
+	pos = glm::vec3(-50, 0, 0);
+	dim = glm::vec3(100, 1, 100);
+
+	min = glm::vec3(-50, 0, -50);
+	max = glm::vec3(50, 50, 50);
+
+	faces = CreateCubeFaceMinMax(min, max);
+	brushes.push_back(ConvertFaceToBrush(faces));
+	initEntity(entity, pos, faces);
+}
+
+
+
+// this contains the result when a box is swept through the world
+struct TraceResult
+{
+	float timeFraction; // 0 ~ 1;
+	glm::vec3 endPos;
+	bool outputStartsOut;	// True if the line segment starts outside of a solid volume.
+	bool outputAllSolid;	// True if the line segment is completely enclosed in a solid volume.
+							// meaning both start and end are inside a brush
+
+	Plane plane;			// surface normal at impact;
+	Entity* entity;			// ground entity
+};
+
+
+struct TraceSetupInfo
+{
+	glm::vec3 mins;
+	glm::vec3 maxs;
+	glm::vec3 traceExtends;
+	bool isTraceBoxAPoint;	// does min == max;
+};
+
+
+void CheckBrush(Brush* brush, glm::vec3 start, glm::vec3 end, TraceResult* result, TraceSetupInfo* setupInfo)
+{
+	if (brush->polygons.size() == 0)
+	{
+		return;
+	}
+
+	float startFraction = -1;
+	float endFraction = 1;
+	bool startsOut = false;
+	bool endsOut = false;
+	Plane* clipPlane = NULL;
+
+	glm::vec3 offsets;
+
+	for (int i = 0; i < brush->polygons.size(); i++)
+	{
+		BspPolygon polygon = brush->polygons[i];
+		Plane plane = polygon.plane;
+
+		float startToPlaneDist = 0;
+		float endToPlaneDist = 0;
+
+		// std::cout << "plane normal " << plane.normal << std::endl;
+
+		for (int j = 0; j < 3; j++)
+		{
+			if (plane.normal[j] < 0)
+			{
+				offsets[j] = setupInfo->maxs[j];
+			}
+			else
+			{
+				offsets[j] = setupInfo->mins[j];
+			}
+		}
+
+		startToPlaneDist = (start[0] + offsets[0]) * plane.normal[0] +
+					(start[1] + offsets[1]) * plane.normal[1] +
+					(start[2] + offsets[2]) * plane.normal[2] - plane.distance;
+
+		endToPlaneDist = (end[0] + offsets[0]) * plane.normal[0] +
+					(end[1] + offsets[1]) * plane.normal[1] +
+					(end[2] + offsets[2]) * plane.normal[2] - plane.distance;
+
+	//	std::cout << "	startToPlaneDist " << startToPlaneDist << std::endl;
+	//	std::cout << "	endToPlaneDist " << endToPlaneDist << std::endl;
+
+
+		if (startToPlaneDist > 0)
+		{
+			startsOut = true;
+		}
+		if (endToPlaneDist > 0)
+		{
+			endsOut = true;
+		}
+
+		/*
+		if its completely in front, we return
+				 _______
+				|		|
+				|		|
+ ---->		<---|		|
+				|		|
+				|_______|
+		
+		*/
+
+		// makesure the trace isn't completely 
+		if (startToPlaneDist > 0 && endToPlaneDist > 0)
+		{
+			return;
+		}
+
+
+		/*
+		both are behind this plane, it will get clipped by another one
+				 _______
+				|		|
+				|		|
+			<---|  ------->
+				|		|
+				|_______|
+		*/
+		if (startToPlaneDist <= 0 && endToPlaneDist <= 0)
+		{
+			continue;
+		}
+
+		// crosses face
+
+		/*
+		startDist > endDist means line is entering into the brush. See graph below
+		startDist is > endDist cuz its further along the plane normal direction
+				 _______
+				|		|
+	 	----------->	|
+      		<---|		|
+				|		|
+				|_______|
+
+
+		startDist > endDist means line is entering into the brush. See graph below
+		startDist is > endDist cuz its further along the plane normal direction
+				 _______
+				|		|
+	 			|	----------->	
+      			|		|--->
+				|		|
+				|_______|
+		*/
+		if (startToPlaneDist > endToPlaneDist)
+		{
+			// line is entering into the brush
+			float fraction = (startToPlaneDist - DIST_EPSILON) / (startToPlaneDist - endToPlaneDist);
+			if (fraction > startFraction)
+			{
+				startFraction = fraction;
+				clipPlane = &plane;
+			}
+		}
+		else
+		{
+			// line is leaving the brush
+			float fraction = (startToPlaneDist + DIST_EPSILON) / (startToPlaneDist - endToPlaneDist);
+			if (fraction < endFraction)
+			{
+				endFraction = fraction;
+			}
+		}
+	}
+
+	if (startsOut == false)
+	{
+		result->outputStartsOut = false;
+		if (endsOut == false)
+		{
+			result->outputAllSolid = true;
+		}
+		return;
+	}
+
+	if (startFraction < endFraction)
+	{
+		// -1 is just the default value. we just want to check if startFraction
+		// has been set a proper value.
+		if (startFraction > -1 && startFraction < result->timeFraction)
+		{
+			if (startFraction < 0)
+				startFraction = 0;
+			result->timeFraction = startFraction;
+			result->plane = *clipPlane;
+		}
+	}
+
 
 }
-*/
+
+void TraceToLeafNode(BSPNode* node, glm::vec3 start, glm::vec3 end, TraceResult* result, TraceSetupInfo* setupInfo)
+{
+	if (node->IsLeafNode())
+	{
+		for (int i = 0; i < node->brushes.size(); i++)
+		{
+			CheckBrush(&node->brushes[i], start, end, result, setupInfo);
+		
+			if (result->timeFraction == 0)
+				return;
+		}
+	}
+}
+
+
+void RecursiveHullCheck(BSPNode* node, float startFraction, float endFraction, 
+						glm::vec3 start, glm::vec3 end, 
+						glm::vec3 traceStart, glm::vec3 traceEnd, 
+						TraceResult* result, TraceSetupInfo* setupInfo)
+{
+	// already hit something nearer
+	if (result->timeFraction <= startFraction)
+	{
+		return;
+	}
+//	std::cout << "visiting node " << node->id << std::endl;
+//	std::cout << "startFraction " << startFraction << ", endFraction " << endFraction << std::endl;
+
+	if (node->IsLeafNode())
+	{
+		TraceToLeafNode(node, traceStart, traceEnd, result, setupInfo);
+		return;
+	}
+
+	Plane plane = node->splitPlane;
+//	std::cout << "		plane " << plane.normal << std::endl;
+
+	float startDist, endDist, offset;
+	if (IsAxialPlane(plane))
+	{
+		// optimize this
+		startDist = glm::dot(start, plane.normal) - plane.distance;
+		endDist = glm::dot(end, plane.normal) - plane.distance;
+		offset = glm::dot(plane.normal, setupInfo->traceExtends);
+	}
+	else
+	{
+		// optimize this
+		startDist = glm::dot(start, plane.normal) - plane.distance;
+		endDist = glm::dot(end, plane.normal) - plane.distance;
+		offset = glm::dot(plane.normal, setupInfo->traceExtends);
+		
+		if (setupInfo->isTraceBoxAPoint)
+		{
+			offset = 0;
+		}
+		else
+		{
+			// similar to 5.2.3 Testing Box Against Plane
+			offset = fabs(setupInfo->traceExtends[0] * plane.normal[0]) +
+				fabs(setupInfo->traceExtends[1] * plane.normal[1]) +
+				fabs(setupInfo->traceExtends[2] * plane.normal[2]);
+		}
+	}
+
+	if (startDist >= offset && endDist >= offset)
+	{
+		RecursiveHullCheck(node->children[0], startFraction, endFraction, start, end, 
+			traceStart, traceEnd, result, setupInfo);
+		return;
+	}
+	if (startDist < -offset && endDist < -offset)
+	{
+		RecursiveHullCheck(node->children[1], startFraction, endFraction, start, end, 
+			traceStart, traceEnd, result, setupInfo);
+		return;
+	}
+
+	// the side that the start is on. 
+	int side;
+	float fraction1, fraction2, middleFraction;
+	glm::vec3 middlePoint;
+	// 1/32 epsilon to keep floating point happy
+
+
+	/*
+	the case where endDist > startDist
+
+				      plane
+						
+			front side	|  back side
+						|
+				end		|    start
+			<-----------|
+						|
+						|
+
+
+	the case where startDist > endDist
+
+					  plane
+
+			front side	|  back side
+						|
+				start	|    end
+			<-----------|
+						|
+						|
+
+	*/
+	if (startDist < endDist)
+	{
+		side = 1;	// start is on the back of the plane
+		float inverseDistance = 1.0f / (startDist - endDist);
+		fraction1 = (startDist - offset + DIST_EPSILON) * inverseDistance;
+		fraction2 = (startDist + offset + DIST_EPSILON) * inverseDistance;
+	}
+	else if (startDist > endDist)
+	{
+		side = 0;	// start is on the front side of the plane
+		float inverseDistance = 1.0f / (startDist - endDist);
+		fraction1 = (startDist + offset + DIST_EPSILON) * inverseDistance;
+		fraction2 = (startDist - offset - DIST_EPSILON) * inverseDistance;
+
+	//	std::cout << "fraction1 " << fraction1 << std::endl;
+	//	std::cout << "fraction2 " << fraction2 << std::endl;
+	}
+	else
+	{
+		side = 0;
+		fraction1 = 1.0f;
+		fraction2 = 0.0f;
+	}
+
+	// examine [start  middle]
+	if (fraction1 < 0) { fraction1 = 0;	}
+	else if (fraction1 > 1) { fraction1 = 1; }
+
+	middleFraction = startFraction + (endFraction - startFraction) * fraction1;
+	middlePoint = start + fraction1 * (end - start);
+
+	RecursiveHullCheck(node->children[side], startFraction, middleFraction, 
+												start, middlePoint, traceStart, traceEnd, 
+												result, setupInfo);
+
+	// examine [middle	end]
+	if (fraction2 < 0) { fraction2 = 0; }
+	else if (fraction2 > 1) { fraction2 = 1; }
+
+	middleFraction = startFraction + (endFraction - startFraction) * fraction2;
+	middlePoint = start + fraction2 * (end - start);
+
+	RecursiveHullCheck(node->children[!side], middleFraction, endFraction, 
+												middlePoint, end, traceStart, 
+												traceEnd, result, setupInfo);
+}
+
+
+
+
+// Cloning cmodel.c
+TraceResult BoxTrace(glm::vec3 start, glm::vec3 end, glm::vec3 mins, glm::vec3 maxs, BSPNode* tree)
+{
+	TraceResult result = {};
+	TraceSetupInfo setup = {};
+
+	result.timeFraction = 1;
+
+	setup.mins = mins;
+	setup.maxs = maxs;
+
+	if (start == end)
+	{
+
+	}
+
+	if (mins == maxs)
+	{
+		setup.isTraceBoxAPoint = true;
+	}
+	else
+	{
+		setup.isTraceBoxAPoint = false;
+
+		// getting the largest dimension in of min or max
+		// essentially we are comparing -min[i] and max[i]
+		setup.traceExtends[0] = -mins[0] > maxs[0] ? -mins[0] : maxs[0];
+		setup.traceExtends[1] = -mins[1] > maxs[1] ? -mins[1] : maxs[1];
+		setup.traceExtends[2] = -mins[2] > maxs[2] ? -mins[2] : maxs[2];
+	}
+
+	RecursiveHullCheck(tree, 0, 1, start, end, start, end, &result, &setup);
+
+	if (result.timeFraction == 1)
+	{
+		result.endPos = end;
+	}
+	else
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			result.endPos[i] = start[i] + result.timeFraction * (end[i] - start[i]);
+		}
+	}
+
+	return result;
+}
+
+
+
+
+
+
+
+
 
 
 // Essentially recreating a simplified version of dust2
@@ -636,50 +1114,23 @@ void initWorld(World* world)
 	float wallHeight = 50;
 
 	CreateAreaA(world, brushes);
+	// CreateAreaC(world, brushes);
 
 	// glm::vec3 siteBSize = glm::vec3(200, wallHeight, 200);
 	//CreateAreaB(world, glm::vec3(500, 0, 0), siteBSize, brushes);
 	
 
-	/*
-	glm::vec3 siteBSize = glm::vec3(200, wallHeight, 200);
-	AddRoom(world, glm::vec3(250, 0, 250), siteBSize, brushes);
-	*/
-
-	/*
-	Entity* entity = NULL;
-
-	// middle triangle
-	entity = &world->entities[world->numEntities++];
-	initEntity(entity, glm::vec3(0, 0, 0), glm::vec3(5, 40, 5));
-	brushes.push_back(CreateBrushForEntity(entity));
-
-
-	// the ground and the walls
-	entity = &world->entities[world->numEntities++];
-	initEntity(entity, glm::vec3(0, 0, 0), glm::vec3(siteASize.x, 1, siteASize.z));
-	brushes.push_back(CreateBrushForEntity(entity));
-
-	entity = &world->entities[world->numEntities++];
-	initEntity(entity, glm::vec3(siteASize.x, wallHeight/2, 0), glm::vec3(1, siteASize.y, siteASize.z));
-	brushes.push_back(CreateBrushForEntity(entity));
-
-	entity = &world->entities[world->numEntities++];
-	initEntity(entity, glm::vec3(-siteASize.x, wallHeight / 2, 0), glm::vec3(1, siteASize.y, siteASize.z));
-	brushes.push_back(CreateBrushForEntity(entity));
-
-	entity = &world->entities[world->numEntities++];
-	initEntity(entity, glm::vec3(0, wallHeight / 2, siteASize.z), glm::vec3(siteASize.x, siteASize.y, 1));
-	brushes.push_back(CreateBrushForEntity(entity));
-
-	entity = &world->entities[world->numEntities++];
-	initEntity(entity, glm::vec3(0, wallHeight / 2, -siteASize.z), glm::vec3(siteASize.x, siteASize.y, 1));
-	brushes.push_back(CreateBrushForEntity(entity));
-	*/
-
-
 
 	std::cout << "############# BuildBSPTree" << std::endl;
 	world->tree = BuildBSPTree(brushes, 0);
 
+	std::cout << "############# PrintBSPTree" << std::endl;
+	PrintBSPTree(world->tree, 0);
+
+
+	world->startPlayerEntityId = world->numEntities;
+	Entity* entity = &world->entities[world->numEntities++];
+	glm::vec3 pos = glm::vec3(-50, 11, -50);
+//	glm::vec3 pos = glm::vec3(-50, 1, -50);
+	initPlayerEntity(entity, pos);
 }

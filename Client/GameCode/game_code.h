@@ -80,7 +80,7 @@ struct GameState
 	bool isInitalized;
 
 	World world;
-	CameraEntity camera;
+	CameraEntity debugCamera;
 
 	bool mouseIsDebugMode;
 
@@ -393,17 +393,10 @@ void PushCube(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, 
 }
 
 
-#if 0
 void PushCube(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, LoadedBitmap* bitmap, 
 					glm::vec4 color, 
-					glm::vec3 entityPosition, 
-					glm::vec3 dim, bool fakeLighting = false)
+					glm::vec3 min, glm::vec3 max, bool fakeLighting = false)
 {
-	// push the 6 sides
-	glm::vec3 min = entityPosition - dim;
-	glm::vec3 max = entityPosition + dim;
-
-
 	/*
 		y
 		^
@@ -483,7 +476,7 @@ void PushCube(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, 
 		p6, t3, bottomColor,
 		p7, t2, bottomColor);
 }
-#endif
+
 
 void PushLine(GameRenderCommands* gameRenderCommands, RenderGroup* group, LoadedBitmap* bitmap, glm::vec4 color, glm::vec3 start, glm::vec3 end, float thickness)
 {
@@ -628,7 +621,25 @@ void PushLine3(GameRenderCommands* gameRenderCommands, RenderGroup* group, Loade
 	*/
 }
 
+/*
+void PushCubeOutline(GameRenderCommands* gameRenderCommands, 
+					RenderGroup* renderGroup, LoadedBitmap* bitmap, glm::vec4 color, glm::vec3 min, glm::vec3 max)
+{
+	// 4 points on front face
+	glm::vec3 p0 = polygon.vertices[0];
+	glm::vec3 p1 = polygon.vertices[1];
+	glm::vec3 p2 = polygon.vertices[2];
+	glm::vec3 p3 = polygon.vertices[3];
 
+	float cubeThickness = 0.5f;
+
+
+	PushLine(gameRenderCommands, renderGroup, bitmap, color, p0, p1, cubeThickness);
+	PushLine(gameRenderCommands, renderGroup, bitmap, color, p1, p2, cubeThickness);
+	PushLine(gameRenderCommands, renderGroup, bitmap, color, p2, p3, cubeThickness);
+	PushLine(gameRenderCommands, renderGroup, bitmap, color, p3, p0, cubeThickness);
+}
+*/
 
 void PushPlaneOutline(GameRenderCommands* gameRenderCommands, RenderGroup* renderGroup, LoadedBitmap* bitmap, glm::vec4 color, BspPolygon polygon)
 {
@@ -658,7 +669,7 @@ void PushCoordinateSystem(GameRenderCommands* gameRenderCommands, RenderGroup* g
 	glm::vec3 yAxisEnd = origin + dim.y * glm::vec3(0, 1, 0);		glm::vec4 yAxisColor = glm::vec4(0, 1, 0, 1);
 	glm::vec3 zAxisEnd = origin + dim.z * glm::vec3(0, 0, 1);		glm::vec4 zAxisColor = glm::vec4(0, 0, 1, 1);
 
-	float cubeThickness = 0.05f;
+	float cubeThickness = 0.5f;
 	PushLine(gameRenderCommands, group, bitmap, xAxisColor, origin, xAxisEnd, cubeThickness);
 	PushLine(gameRenderCommands, group, bitmap, yAxisColor, origin, yAxisEnd, cubeThickness);
 	PushLine(gameRenderCommands, group, bitmap, zAxisColor, origin, zAxisEnd, cubeThickness);
@@ -711,22 +722,24 @@ void PushTreeRecursive(GameRenderCommands* gameRenderCommands, RenderGroup* grou
 
 	if (renderFlag)
 	{
-		glm::vec4 color = COLOR_GREEN;
-		color.a = 0.01;
-
-
-	//	if (!IsAxialPlane(node->debugSplitPolygon.plane))
+		if (!node->IsLeafNode())
 		{
-			PushPlane(gameRenderCommands, group, bitmap, color, node->debugSplitPolygon, true);
-			PushPlaneOutline(gameRenderCommands, group, bitmap, COLOR_GREEN, node->debugSplitPolygon);
+			glm::vec4 color = COLOR_GREEN;
+			color.a = 0.01;
+
+			//	if (!IsAxialPlane(node->debugSplitPolygon.plane))
+			{
+				PushPlane(gameRenderCommands, group, bitmap, color, node->debugSplitPolygon, true);
+				PushPlaneOutline(gameRenderCommands, group, bitmap, COLOR_GREEN, node->debugSplitPolygon);
+			}
 		}
 
 
 	}
 
 	// render the splitting plane
-	PushTreeRecursive(gameRenderCommands, group, bitmap, node->frontChild, true, depth + 1);
-	PushTreeRecursive(gameRenderCommands, group, bitmap, node->backChild, false, depth + 1);
+	PushTreeRecursive(gameRenderCommands, group, bitmap, node->children[0], true, depth + 1);
+	PushTreeRecursive(gameRenderCommands, group, bitmap, node->children[1], false, depth + 1);
 }
 
 
@@ -822,9 +835,25 @@ glm::mat4 GetCameraMatrix(const glm::vec3& eye, const glm::vec3& center, const g
 	return result;
 }
 
+void RenderEntityPlayerModel(GameRenderCommands* gameRenderCommands,
+	RenderGroup* renderGroup,
+	GameAssets* gameAssets,
+	Entity* entity)
+{
+	BitmapId bitmapID = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Default);
+	LoadedBitmap* bitmap = GetBitmap(gameAssets, bitmapID);
+
+	glm::vec3 offset = glm::vec3(1, 1, 1);
+
+	glm::vec3 min = entity->pos + entity->min - offset;
+	glm::vec3 max = entity->pos + entity->max + offset;
+
+	PushCube(gameRenderCommands, renderGroup, bitmap, COLOR_RED, min, max, true);
+}
 
 
-void RenderEntityModel(GameRenderCommands* gameRenderCommands,
+
+void RenderEntityStaticModel(GameRenderCommands* gameRenderCommands,
 	RenderGroup* renderGroup,
 	GameAssets* gameAssets,
 	Entity* entity)
@@ -844,6 +873,43 @@ void RenderEntityModel(GameRenderCommands* gameRenderCommands,
 }
 
 
+void CatagorizePosition(World* world, Entity* entity)
+{
+	glm::vec3 end = entity->pos;
+	end[1] -= 2;
+
+	TraceResult result = BoxTrace(entity->pos, end, entity->min, entity->max, world->tree);
+	cout << "result.timeFraction " << result.timeFraction << endl;
+	if (result.entity != NULL)
+	{
+		entity->groundEntity == NULL;
+	}
+	else
+	{
+		entity->groundEntity = result.entity;
+		entity->plane = result.plane;
+	}
+}
+
+void PerformMove()
+{
+
+}
+
+
+void PlayerMove(World* world, Entity* entity)
+{
+	// categorize current position
+	CatagorizePosition(world, entity);
+
+	// slide move
+	PerformMove();
+
+	// categoize current position 2
+	CatagorizePosition(world, entity);
+}
+
+
 void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 	GameInputState* gameInputState, GameRenderCommands* gameRenderCommands, glm::ivec2 windowDimensions, bool isDebugMode)
 {
@@ -852,7 +918,7 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 
 	// float angleXInRad = 0;
 	// float angleYInRad = 0;
-	CameraEntity* cam = &gameState->camera;
+	CameraEntity* cam = &gameState->debugCamera;
 
 	if (!isDebugMode)
 	{
@@ -868,7 +934,7 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 		{
 			cout << ">>>>> dy " << dy << endl;
 		}
-			*/
+		*/
 
 		angleXInDeg = dx * 0.05f;
 		angleYInDeg = dy * 0.05f;
@@ -913,13 +979,16 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 		}
 		*/
 	}
+	else
+	{
 
+	}
 
 
 
 	// rotate around x with dy then rotate around Y with dx
 	glm::vec3 newViewDir = glm::vec3(glm::rotate(angleYInDeg, cam->xAxis) *
-		glm::rotate(-angleXInDeg, cam->yAxis) * glm::vec4(gameState->camera.GetViewDirection(), 1));
+		glm::rotate(-angleXInDeg, cam->yAxis) * glm::vec4(gameState->debugCamera.GetViewDirection(), 1));
 
 	newViewDir = glm::normalize(newViewDir);
 	//	cam->SetViewDirection(newViewDir);
@@ -929,28 +998,63 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 	float stepSize = 2.0f;
 	if (gameInputState->moveForward.endedDown)
 	{
-		gameState->camera.position += stepSize * newViewDir;
+		gameState->debugCamera.position += stepSize * newViewDir;
 	}
 
 	if (gameInputState->moveLeft.endedDown)
 	{
-		gameState->camera.position += stepSize * GetHorizontalVector(newViewDir, true);
+		gameState->debugCamera.position += stepSize * GetHorizontalVector(newViewDir, true);
 	}
 
 	if (gameInputState->moveRight.endedDown)
 	{
-		gameState->camera.position += stepSize * GetHorizontalVector(newViewDir, false);
+		gameState->debugCamera.position += stepSize * GetHorizontalVector(newViewDir, false);
 	}
 
 	if (gameInputState->moveBack.endedDown)
 	{
-		gameState->camera.position += -stepSize * newViewDir;
+		gameState->debugCamera.position += -stepSize * newViewDir;
 	}
-	// update camera
+
+	stepSize = 0.1f;
+	World* world = &gameState->world;
+	if (gameInputState->moveForward2.endedDown)
+	{
+		world->entities[world->startPlayerEntityId].pos.x += stepSize;
+	}
+	if (gameInputState->moveBack2.endedDown)
+	{
+		world->entities[world->startPlayerEntityId].pos.x += -stepSize;
+	}
+
+	if (gameInputState->moveLeft2.endedDown)
+	{
+		world->entities[world->startPlayerEntityId].pos.z += stepSize;
+	}
+	if (gameInputState->moveRight2.endedDown)
+	{
+		world->entities[world->startPlayerEntityId].pos.z += -stepSize;
+	}
 
 
-	// update camera matrix
-	glm::vec3 center = gameState->camera.position + newViewDir;
+
+	if (gameInputState->moveUp2.endedDown)
+	{
+		world->entities[world->startPlayerEntityId].pos.y += stepSize;
+	}
+	if (gameInputState->moveDown2.endedDown)
+	{
+		world->entities[world->startPlayerEntityId].pos.y += -stepSize;
+	}
+
+	// Update Player movement
+
+	PlayerMove(world, &world->entities[world->startPlayerEntityId]);
+
+
+
+	// Update camera matrix
+	glm::vec3 center = gameState->debugCamera.position + newViewDir;
 	glm::vec3 supportUpVector = glm::vec3(0, 1, 0);
 	if (glm::dot(newViewDir, supportUpVector) == 1)
 	{
@@ -958,14 +1062,17 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 	}
 
 
-	glm::mat4 cameraMatrix = GetCameraMatrix(gameState->camera.position, center, supportUpVector);
+	glm::mat4 cameraMatrix = GetCameraMatrix(gameState->debugCamera.position, center, supportUpVector);
 	cam->SetOrientation(cameraMatrix);
 
 	globalDebugCameraMat = cameraMatrix;
 
-	glm::mat4 cameraTransform = glm::translate(gameState->camera.position);// *cameraRot;
+	glm::mat4 cameraTransform = glm::translate(gameState->debugCamera.position);// *cameraRot;
 	float dim = 20;
 	glm::mat4 cameraProj = glm::perspective(45.0f, windowDimensions.x / (float)windowDimensions.y, 0.5f, 5000.0f);
+
+
+
 
 
 	// We start a render setup
@@ -983,20 +1090,22 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 	group.quads->renderSetup = renderSetup;
 
 
-	World* world = &gameState->world;
 	for (int i = 0; i < world->numEntities; i++)
 	{
 		Entity* entity = &world->entities[i];
-		RenderEntityModel(gameRenderCommands, &group, gameAssets, entity);
+		switch (entity->flag)
+		{
+			case EntityFlag::STATIC:
+				RenderEntityStaticModel(gameRenderCommands, &group, gameAssets, entity);
+				break;
 
-		/*
-		BitmapId bitmapID2 = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Wall);
-		LoadedBitmap* bitmap2 = GetBitmap(gameAssets, bitmapID2);
-		PushCube(gameRenderCommands, &group, bitmap2, COLOR_WHITE, entity->pos, entity->dim, true);
-		*/
+			case EntityFlag::PLAYER:
+				RenderEntityPlayerModel(gameRenderCommands, &group, gameAssets, entity);
+				break;
+		}	
 	}
 
-	float scale = 200;
+	float scale = 500;
 	BitmapId bitmapID = GetFirstBitmapIdFrom(gameAssets, AssetFamilyType::Default);
 	LoadedBitmap* bitmap = GetBitmap(gameAssets, bitmapID);
 	PushCoordinateSystem(gameRenderCommands, &group, bitmap, glm::vec3(0, 0, 0), glm::vec3(scale, scale, scale));
@@ -1048,11 +1157,11 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory * gameMemor
 
 		initWorld(&gameState->world);
 
-		gameState->camera = {};
-		gameState->camera.position = glm::vec3(0, 300, 250);
-		gameState->camera.xAxis = glm::vec3(1.0, 0.0, 0.0);
-		gameState->camera.yAxis = glm::vec3(0.0, 1.0, 0.0);
-		gameState->camera.zAxis = glm::vec3(0.0, 0.0, 1.0);
+		gameState->debugCamera = {};
+		gameState->debugCamera.position = glm::vec3(-300, 115, -40);
+		gameState->debugCamera.xAxis = glm::vec3(1.0, 0.0, 0.0);
+		gameState->debugCamera.yAxis = glm::vec3(0.0, 1.0, 0.0);
+		gameState->debugCamera.zAxis = glm::vec3(0.0, 0.0, 1.0);
 
 		gameState->mouseIsDebugMode = false;
 
@@ -1380,7 +1489,7 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory * ga
 	size = sprintf(ptr, "\n");
 	ptr += size;
 
-	size = sprintf(ptr, "CameraPos is %f %f %f", gameState->camera.position.x, gameState->camera.position.y, gameState->camera.position.z);
+	size = sprintf(ptr, "CameraPos is %f %f %f", gameState->debugCamera.position.x, gameState->debugCamera.position.y, gameState->debugCamera.position.z);
 	ptr += size;
 
 	DEBUGTextLine(buffer, gameRenderCommands, &group, transientState->assets, startPos);
