@@ -39,6 +39,9 @@ static glm::mat4 globalDebugCameraMat;
 static DebugTable* GlobalDebugTable;
 int MAX_DEBUG_EVENT_ARRAY_COUNT = 8;
 
+float FIXED_UPDATE_TIME_S = 0.016f;
+
+/*
 struct CameraEntity
 {
 	// consider storing these 4 as a matrix?
@@ -69,7 +72,7 @@ struct CameraEntity
 		zAxis = glm::vec3(cameraMatrix[2][0], cameraMatrix[2][1], cameraMatrix[2][2]);
 	}
 };
-
+*/
 
 
 
@@ -80,7 +83,8 @@ struct GameState
 	bool isInitalized;
 
 	World world;
-	CameraEntity debugCamera;
+
+	Entity debugCameraEntity;
 
 	bool mouseIsDebugMode;
 
@@ -876,198 +880,334 @@ void RenderEntityStaticModel(GameRenderCommands* gameRenderCommands,
 void CatagorizePosition(World* world, Entity* entity)
 {
 	glm::vec3 end = entity->pos;
-	end[1] -= 2;
+	end[1] -= 0.25;
 
 	TraceResult result = BoxTrace(entity->pos, end, entity->min, entity->max, world->tree);
-	cout << "result.timeFraction " << result.timeFraction << endl;
-	if (result.entity != NULL)
+//	cout << "result.timeFraction " << result.timeFraction << endl;
+
+	if(result.plane == NULL_PLANE && result.outputStartsOut)
 	{
-		entity->groundEntity == NULL;
+//		cout << "	has no ground entity ";
+
+		entity->groundEntity = NULL;
+		entity->groundPlane = NULL_PLANE;
+	}
+	else 
+	{
+//		cout << "	has ground entity ";
+		entity->groundEntity = (Entity*)1;
+		entity->groundPlane = result.plane;
+	}
+}
+
+
+struct PlayerMoveData
+{
+//	glm::vec3 position;
+	glm::vec3 velocity;
+};
+
+void PerformMove(World* world, Entity* entity, PlayerMoveData* move)
+{
+	glm::vec3 origin = entity->pos;
+	glm::vec3 velocity = move->velocity;
+
+	int numClippingPlaces = 0;
+	float timeLeft = 0.1f;// FIXED_UPDATE_TIME_S;
+	for (int i = 0; i < 1; i++)
+	{
+		glm::vec3 end = origin + timeLeft * velocity;
+
+		cout << "origin " << origin << endl;
+		cout << "end " << end << endl;
+
+		TraceResult result = BoxTrace(origin, end, entity->min, entity->max, world->tree);
+
+		if (result.outputAllSolid)
+		{
+			move->velocity = glm::vec3(0);
+			return;
+		}
+	
+		if (result.timeFraction > 0)
+		{
+			entity->pos = result.endPos;
+			numClippingPlaces = 0;
+		}
+		else if (result.timeFraction == 0)
+		{
+
+		}
+		else if (result.timeFraction == 1)
+		{
+			break;
+		}
+
+		timeLeft -= timeLeft * result.timeFraction;
+
+
+		numClippingPlaces++;
+	}
+
+
+
+}
+
+
+
+void PerformMove2(World* world, Entity* entity, PlayerMoveData* move)
+{
+	glm::vec3 origin = entity->pos;
+	glm::vec3 velocity = move->velocity;
+
+	int numClippingPlaces = 0;
+	float timeLeft = 0.1f;// FIXED_UPDATE_TIME_S;
+	for (int i = 0; i < 1; i++)
+	{
+		glm::vec3 end = origin + timeLeft * velocity;
+
+		if (origin.y == 10.5)
+		{
+			int a = 1;
+		}
+
+		cout << "origin " << origin << endl;
+		cout << "end " << end << endl;
+
+		TraceResult result = BoxTrace(origin, end, entity->min, entity->max, world->tree, true);
+
+		cout << "result time fraction " << result.timeFraction << endl;
+
+		if (result.outputAllSolid)
+		{
+			move->velocity = glm::vec3(0);
+			return;
+		}
+
+		if (result.timeFraction > 0)
+		{
+			entity->pos = result.endPos;
+			numClippingPlaces = 0;
+		}
+		else if (result.timeFraction == 0)
+		{
+
+		}
+		else if (result.timeFraction == 1)
+		{
+			break;
+		}
+
+		timeLeft -= timeLeft * result.timeFraction;
+
+
+		numClippingPlaces++;
+	}
+
+
+
+}
+
+
+
+void EntityMoveTick(World* world, Entity* entity, PlayerMoveData* move, bool applyGravity)
+{
+	if (entity->groundEntity != NULL)
+	{
+
+		if (move->velocity.x != 0 || move->velocity.z != 0)
+		{
+			std::cout << "ground entity" << std::endl;
+
+			PerformMove2(world, entity, move);
+		}
 	}
 	else
 	{
-		entity->groundEntity = result.entity;
-		entity->plane = result.plane;
+	//	std::cout << "in air" << std::endl;
+		if (applyGravity)
+		{
+			static glm::vec3 GRAVITY = glm::vec3(0, -5, 0);
+			move->velocity += GRAVITY;
+		}
+
+		if (move->velocity.x != 0 || move->velocity.y != 0 || move->velocity.z != 0)
+		{
+			PerformMove2(world, entity, move);
+		}
 	}
 }
 
-void PerformMove()
-{
 
-}
-
-
-void PlayerMove(World* world, Entity* entity)
+void PlayerMove(World* world, Entity* entity, PlayerMoveData* move, bool applyGravity)
 {
 	// categorize current position
 	CatagorizePosition(world, entity);
 
 	// slide move
-	PerformMove();
+	EntityMoveTick(world, entity, move, applyGravity);
 
 	// categoize current position 2
 	CatagorizePosition(world, entity);
 }
 
 
-void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
-	GameInputState* gameInputState, GameRenderCommands* gameRenderCommands, glm::ivec2 windowDimensions, bool isDebugMode)
+glm::vec3 UpdateEntityViewDirection(Entity* entity, GameInputState* gameInputState, glm::ivec2 windowDimensions)
 {
 	float angleXInDeg = 0;
 	float angleYInDeg = 0;
 
-	// float angleXInRad = 0;
-	// float angleYInRad = 0;
-	CameraEntity* cam = &gameState->debugCamera;
+	float dx = gameInputState->mousePos.x - windowDimensions.x / 2;
+	float dy = gameInputState->mousePos.y - windowDimensions.y / 2;
 
-	if (!isDebugMode)
+
+	angleXInDeg = dx * 0.05f;
+	angleYInDeg = dy * 0.05f;
+
+	if (entity->pitch + angleYInDeg >= 179)
 	{
-		float dx = gameInputState->mousePos.x - windowDimensions.x / 2;
-		float dy = gameInputState->mousePos.y - windowDimensions.y / 2;
+		angleYInDeg = 179 - entity->pitch;
+	}
 
-		/*
-		if (dx != 0)
-		{
-			cout << "dx " << dx << endl;
-		}
-		if (dy != 0)
-		{
-			cout << ">>>>> dy " << dy << endl;
-		}
-		*/
+	if (entity->pitch + angleYInDeg <= -179)
+	{
+		angleYInDeg = -179 - entity->pitch;
+	}
 
-		angleXInDeg = dx * 0.05f;
-		angleYInDeg = dy * 0.05f;
+	entity->pitch += angleYInDeg;
 
-		if (cam->pitch + angleYInDeg >= 179)
-		{
-			angleYInDeg = 179 - cam->pitch;
-		}
+	// rotate around x with dy then rotate around Y with dx
+	glm::vec3 newViewDir = glm::vec3(glm::rotate(angleYInDeg, entity->xAxis) *
+		glm::rotate(-angleXInDeg, entity->yAxis) * glm::vec4(entity->GetViewDirection(), 1));
 
-		if (cam->pitch + angleYInDeg <= -179)
-		{
-			angleYInDeg = -179 - cam->pitch;
-		}
+	newViewDir = glm::normalize(newViewDir);
+	return newViewDir;
+}
 
-		/*
-		if (angleYInDeg != 0)
-		{
-			cout << "		angleYInDeg " << angleYInDeg << endl;
-		}
-		*/
-		cam->pitch += angleYInDeg;
 
-		/*
-		if (angleYInDeg != 0)
-		{
-			cout << "		cam->Pitch " << cam->pitch << endl;
-		}
-		*/
-		// angleXInRad = angleXInDeg * 3.14f / 180.0f;
-		// angleYInRad = angleYInDeg * 3.14f / 180.0f;
+void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
+	GameInputState* gameInputState, GameRenderCommands* gameRenderCommands, glm::ivec2 windowDimensions, DebugModeState* debugModeState)
+{
+	Entity* controlledEntity = &gameState->debugCameraEntity;
 
-		/*
-		if (dx != 0)
-		{
-			cout << "angleXInDeg " << angleXInDeg << endl;
-		}
-		*/
-		/*
-		if (dy != 0)
-		{
-			cout << "		angleYInDeg " << angleYInDeg << endl;
-		}
-		*/
+	World* world = &gameState->world;
+	glm::vec3 newViewDir;
+	if (debugModeState->cameraDebugMode)
+	{
+		controlledEntity = &gameState->debugCameraEntity;
 	}
 	else
 	{
-
+		controlledEntity = &world->entities[world->startPlayerEntityId];
 	}
 
+	if (!debugModeState->mouseDebugMode)
+	{
+		newViewDir = UpdateEntityViewDirection(controlledEntity, gameInputState, windowDimensions);
+	}
+	else
+	{
+		newViewDir = controlledEntity->GetViewDirection();
+	}
 
+	glm::vec3 newWalkDir;
+	if (debugModeState->cameraDebugMode)
+	{
+		newWalkDir = newViewDir;
+	}
+	else
+	{
+		newWalkDir = newViewDir;
+		newWalkDir.y = 0;
+		newWalkDir = glm::normalize(newWalkDir);
+	}
 
-	// rotate around x with dy then rotate around Y with dx
-	glm::vec3 newViewDir = glm::vec3(glm::rotate(angleYInDeg, cam->xAxis) *
-		glm::rotate(-angleXInDeg, cam->yAxis) * glm::vec4(gameState->debugCamera.GetViewDirection(), 1));
-
-	newViewDir = glm::normalize(newViewDir);
 	//	cam->SetViewDirection(newViewDir);
 
+	PlayerMoveData pmove = {};
 
 	// process input
-	float stepSize = 2.0f;
-	if (gameInputState->moveForward.endedDown)
+	float stepSize = 40.0f;
+//	if (debugModeState->cameraDebugMode)
 	{
-		gameState->debugCamera.position += stepSize * newViewDir;
+		if (gameInputState->moveForward.endedDown) {
+//			newWalkDir.y = 0;
+			pmove.velocity += stepSize * newWalkDir;
+		}
+		if (gameInputState->moveLeft.endedDown) {
+			newWalkDir = GetHorizontalVector(newWalkDir, true);
+//			newWalkDir.y = 0;
+			pmove.velocity += stepSize * newWalkDir;
+		}
+		if (gameInputState->moveRight.endedDown) {
+			newWalkDir = GetHorizontalVector(newWalkDir, false);
+//			newWalkDir.y = 0;
+			pmove.velocity += stepSize * newWalkDir;
+		}
+		if (gameInputState->moveBack.endedDown) {
+//			newWalkDir.y = 0;
+			pmove.velocity += -stepSize * newWalkDir;
+		}
 	}
-
-	if (gameInputState->moveLeft.endedDown)
+	/*
+	else
 	{
-		gameState->debugCamera.position += stepSize * GetHorizontalVector(newViewDir, true);
+		if (gameInputState->moveForward.endedDown) {
+			newWalkDir = glm::vec3(1, 0, 0);
+			pmove.velocity += stepSize * newWalkDir;
+		}
+		if (gameInputState->moveLeft.endedDown) {
+			newWalkDir = glm::vec3(0, 0, 1);
+			pmove.velocity += stepSize * newWalkDir;
+		}
+		if (gameInputState->moveRight.endedDown) {
+			newWalkDir = glm::vec3(0, 0, 1);
+			pmove.velocity += -stepSize * newWalkDir;
+		}
+		if (gameInputState->moveBack.endedDown) {
+			newWalkDir = glm::vec3(1, 0, 0);
+			pmove.velocity += -stepSize * newWalkDir;
+		}
 	}
-
-	if (gameInputState->moveRight.endedDown)
-	{
-		gameState->debugCamera.position += stepSize * GetHorizontalVector(newViewDir, false);
-	}
-
-	if (gameInputState->moveBack.endedDown)
-	{
-		gameState->debugCamera.position += -stepSize * newViewDir;
-	}
+	*/
 
 	stepSize = 0.1f;
-	World* world = &gameState->world;
-	if (gameInputState->moveForward2.endedDown)
-	{
-		world->entities[world->startPlayerEntityId].pos.x += stepSize;
-	}
-	if (gameInputState->moveBack2.endedDown)
-	{
-		world->entities[world->startPlayerEntityId].pos.x += -stepSize;
-	}
 
-	if (gameInputState->moveLeft2.endedDown)
+	if (gameInputState->moveForward2.endedDown){world->entities[world->startPlayerEntityId].pos.x += stepSize;}
+	if (gameInputState->moveBack2.endedDown){world->entities[world->startPlayerEntityId].pos.x += -stepSize;}
+
+	if (gameInputState->moveLeft2.endedDown){world->entities[world->startPlayerEntityId].pos.z += stepSize;}
+	if (gameInputState->moveRight2.endedDown){world->entities[world->startPlayerEntityId].pos.z += -stepSize;}
+
+	if (gameInputState->moveUp2.endedDown)	{world->entities[world->startPlayerEntityId].pos.y += stepSize;}
+	if (gameInputState->moveDown2.endedDown){world->entities[world->startPlayerEntityId].pos.y += -stepSize;}
+
+//	if (!debugModeState->cameraDebugMode)
 	{
-		world->entities[world->startPlayerEntityId].pos.z += stepSize;
-	}
-	if (gameInputState->moveRight2.endedDown)
-	{
-		world->entities[world->startPlayerEntityId].pos.z += -stepSize;
+		// Update Player movement
+	//	cout << "cur position " << world->entities[world->startPlayerEntityId].pos << endl;
+		PlayerMove(world, controlledEntity, &pmove, !debugModeState->cameraDebugMode);
 	}
 
-
-
-	if (gameInputState->moveUp2.endedDown)
-	{
-		world->entities[world->startPlayerEntityId].pos.y += stepSize;
-	}
-	if (gameInputState->moveDown2.endedDown)
-	{
-		world->entities[world->startPlayerEntityId].pos.y += -stepSize;
-	}
-
-	// Update Player movement
-
-	PlayerMove(world, &world->entities[world->startPlayerEntityId]);
-
+	// world->entities[world->startPlayerEntityId].pos = pmove.position;
+	world->entities[world->startPlayerEntityId].velocity = pmove.velocity;
 
 
 	// Update camera matrix
-	glm::vec3 center = gameState->debugCamera.position + newViewDir;
+	glm::vec3 center = controlledEntity->pos + newViewDir;
 	glm::vec3 supportUpVector = glm::vec3(0, 1, 0);
 	if (glm::dot(newViewDir, supportUpVector) == 1)
 	{
-		supportUpVector = cam->yAxis;
+		supportUpVector = controlledEntity->yAxis;
 	}
 
 
-	glm::mat4 cameraMatrix = GetCameraMatrix(gameState->debugCamera.position, center, supportUpVector);
-	cam->SetOrientation(cameraMatrix);
+	glm::mat4 cameraMatrix = GetCameraMatrix(controlledEntity->pos, center, supportUpVector);
+	controlledEntity->SetOrientation(cameraMatrix);
 
 	globalDebugCameraMat = cameraMatrix;
 
-	glm::mat4 cameraTransform = glm::translate(gameState->debugCamera.position);// *cameraRot;
+	glm::mat4 cameraTransform = glm::translate(controlledEntity->pos);// *cameraRot;
 	float dim = 20;
 	glm::mat4 cameraProj = glm::perspective(45.0f, windowDimensions.x / (float)windowDimensions.y, 0.5f, 5000.0f);
 
@@ -1100,7 +1240,10 @@ void WorldTickAndRender(GameState* gameState, GameAssets* gameAssets,
 				break;
 
 			case EntityFlag::PLAYER:
-				RenderEntityPlayerModel(gameRenderCommands, &group, gameAssets, entity);
+				if (debugModeState->cameraDebugMode)
+				{
+			//		RenderEntityPlayerModel(gameRenderCommands, &group, gameAssets, entity);
+				}
 				break;
 		}	
 	}
@@ -1118,7 +1261,7 @@ extern DebugTable* globalDebugTable;
 
 
 extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory * gameMemory, GameInputState * gameInputState, GameRenderCommands * gameRenderCommands,
-	glm::ivec2 windowDimensions, bool isDebugMode)
+	glm::ivec2 windowDimensions, DebugModeState* debugModeState)
 {
 	//	cout << "Update And Render-2" << endl;
 
@@ -1157,11 +1300,13 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory * gameMemor
 
 		initWorld(&gameState->world);
 
-		gameState->debugCamera = {};
-		gameState->debugCamera.position = glm::vec3(-300, 115, -40);
-		gameState->debugCamera.xAxis = glm::vec3(1.0, 0.0, 0.0);
-		gameState->debugCamera.yAxis = glm::vec3(0.0, 1.0, 0.0);
-		gameState->debugCamera.zAxis = glm::vec3(0.0, 0.0, 1.0);
+		gameState->debugCameraEntity = {};
+		gameState->debugCameraEntity.pos = glm::vec3(-300, 10, -40);
+		gameState->debugCameraEntity.xAxis = glm::vec3(1.0, 0.0, 0.0);
+		gameState->debugCameraEntity.yAxis = glm::vec3(0.0, 1.0, 0.0);
+		gameState->debugCameraEntity.zAxis = glm::vec3(0.0, 0.0, 1.0);
+		gameState->debugCameraEntity.min = glm::vec3(-10, -10, -10);
+		gameState->debugCameraEntity.max = glm::vec3(10, 10, 10);
 
 		gameState->mouseIsDebugMode = false;
 
@@ -1200,7 +1345,7 @@ extern "C" __declspec(dllexport) void GameUpdateAndRender(GameMemory * gameMemor
 	}
 	*/
 
-	WorldTickAndRender(gameState, transientState->assets, gameInputState, gameRenderCommands, windowDimensions, isDebugMode);
+	WorldTickAndRender(gameState, transientState->assets, gameInputState, gameRenderCommands, windowDimensions, debugModeState);
 }
 
 
@@ -1395,7 +1540,7 @@ void RenderProfileBars(DebugState* debugState, GameRenderCommands* gameRenderCom
 extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory * gameMemory,
 	GameInputState * gameInputState,
 	GameRenderCommands * gameRenderCommands,
-	glm::ivec2 windowDimensions, bool isDebugMode)
+	glm::ivec2 windowDimensions, DebugModeState* debugModeState)
 {
 	DebugState* debugState = (DebugState*)gameMemory->debugStorage;
 	if (!debugState->isInitalized)
@@ -1489,7 +1634,7 @@ extern "C" __declspec(dllexport) void DebugSystemUpdateAndRender(GameMemory * ga
 	size = sprintf(ptr, "\n");
 	ptr += size;
 
-	size = sprintf(ptr, "CameraPos is %f %f %f", gameState->debugCamera.position.x, gameState->debugCamera.position.y, gameState->debugCamera.position.z);
+	size = sprintf(ptr, "CameraPos is %f %f %f", gameState->debugCameraEntity.pos.x, gameState->debugCameraEntity.pos.y, gameState->debugCameraEntity.pos.z);
 	ptr += size;
 
 	DEBUGTextLine(buffer, gameRenderCommands, &group, transientState->assets, startPos);

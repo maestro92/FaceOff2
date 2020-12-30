@@ -8,6 +8,13 @@ struct DebugTable;
 
 extern DebugTable* globalDebugTable;
 
+struct DebugModeState
+{
+	bool mouseDebugMode;
+	bool cameraDebugMode;
+};
+
+
 enum DebugEventType
 {
 	FrameMarker,

@@ -23,7 +23,15 @@ struct Plane
 		std::cout << "		normal " << normal << ", distance " << distance << std::endl;
 	}
 
+	bool operator==(const Plane& p) const
+	{
+		return normal == p.normal && distance == p.distance;
+	}
 
+	bool operator!=(const Plane& p) const
+	{
+		return !(*this == p);
+	}
 };
 
 

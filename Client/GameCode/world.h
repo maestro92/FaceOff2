@@ -17,6 +17,8 @@ struct Face
 	std::vector<glm::vec3> vertices;
 };
 
+Plane NULL_PLANE;
+
 enum EntityFlag
 {
 	STATIC,
@@ -29,7 +31,7 @@ struct Entity
 
 	glm::vec3 pos;
 	glm::vec3 dim;
-
+	glm::vec3 velocity;
 
 	// For AABB physics, in object space
 	glm::vec3 min;
@@ -38,9 +40,28 @@ struct Entity
 	glm::vec3 xAxis;
 	glm::vec3 yAxis;
 	glm::vec3 zAxis;
+	float pitch;
+	void SetViewDirection(glm::vec3 viewDirection)
+	{
+		zAxis = -viewDirection;
+	}
+
+	glm::vec3 GetViewDirection()
+	{
+		return -zAxis;
+	}
+
+	// usually you just pass in the gluLookAtMatrix
+	void SetOrientation(glm::mat4 cameraMatrix)
+	{
+		// Hack: Todo, get rid of this extra inverse
+		xAxis = glm::vec3(cameraMatrix[0][0], cameraMatrix[0][1], cameraMatrix[0][2]);
+		yAxis = glm::vec3(cameraMatrix[1][0], cameraMatrix[1][1], cameraMatrix[1][2]);
+		zAxis = glm::vec3(cameraMatrix[2][0], cameraMatrix[2][1], cameraMatrix[2][2]);
+	}
 
 	Entity* groundEntity;
-	Plane plane;
+	Plane groundPlane;
 	// For Rendering
 	// TODO: change this model index
 	std::vector<Face> model;
@@ -88,6 +109,10 @@ void initPlayerEntity(Entity* entity, glm::vec3 pos)
 	entity->flag = EntityFlag::PLAYER;
 	entity->min = glm::vec3(-10, -10, -10);
 	entity->max = glm::vec3(10, 10, 10);
+
+	entity->xAxis = glm::vec3(1.0, 0.0, 0.0);
+	entity->yAxis = glm::vec3(0.0, 1.0, 0.0);
+	entity->zAxis = glm::vec3(0.0, 0.0, 1.0);
 }
 
 std::vector<glm::vec3> GetCubeVertices(glm::vec3 min, glm::vec3 max)
@@ -324,6 +349,7 @@ void AddPolygonToBrush(Brush* brush, std::vector<glm::vec3> verticesIn)
 		BspPolygon polygon(vertices, 4);
 		float dist = glm::dot(normal, vertices[0]);
 		polygon.plane = { normal, dist };
+		std::cout << "	dist " << dist << std::endl;
 		brush->polygons.push_back(polygon);
 		brush->used.push_back(false);
 	}
@@ -362,33 +388,27 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	
 	// plane 1
 	entity = &world->entities[world->numEntities++];
-	pos = glm::vec3(0, 0, 0);
-	dim = glm::vec3(200, 1, 50);
-
 	min = glm::vec3(-200, -20, -200);
 	max = glm::vec3(200, 0, 0);
 
 	faces = CreateCubeFaceMinMax(min, max);
 	brushes.push_back(ConvertFaceToBrush(faces));
 	initEntity(entity, pos, faces);
-	/*
+	
+	
 	// plane 1 wall 1
 	entity = &world->entities[world->numEntities++];
-	pos = glm::vec3(0, 0, 0);
-
 	min = glm::vec3(-200, 0, 0);
-	max = glm::vec3(200, 100, 1);
+	max = glm::vec3(200, 100, 25);
 
 	faces = CreateCubeFaceMinMax(min, max);
 	brushes.push_back(ConvertFaceToBrush(faces));
 	initEntity(entity, pos, faces);
+	
 
-
+	
 	// plane 1 wall 2
 	entity = &world->entities[world->numEntities++];
-	pos = glm::vec3(0, 0, 0);
-	dim = glm::vec3(200, 1, 50);
-
 	min = glm::vec3(-201, 0, -200);
 	max = glm::vec3(-200, 100, 0);
 
@@ -400,9 +420,6 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	// plane 1 wall 3
 	std::cout << "plane 1 wall 3" << std::endl;
 	entity = &world->entities[world->numEntities++];
-	pos = glm::vec3(0, 0, 0);
-	dim = glm::vec3(200, 1, 50);
-
 	min = glm::vec3(200, 0, -200);
 	max = glm::vec3(201, 100, 0);
 
@@ -415,9 +432,6 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	// plane 1 wall 4
 	std::cout << "plane 1 wall 4" << std::endl;
 	entity = &world->entities[world->numEntities++];
-	pos = glm::vec3(50, 0, 0);
-	dim = glm::vec3(100, 1, 100);
-
 	min = glm::vec3(-200, 0, -201);
 	max = glm::vec3(-100, 100, -200);
 
@@ -431,11 +445,8 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	// plane 2
 	std::cout << "plane 2" << std::endl;
 	entity = &world->entities[world->numEntities++];
-	pos = glm::vec3(50, 0, 0);
-	dim = glm::vec3(100, 1, 100);
-
-	min = glm::vec3(0, 0, -400);
-	max = glm::vec3(200, 1, -200);
+	min = glm::vec3(0, -50, -400);
+	max = glm::vec3(200, 0, -200);
 
 	faces = CreateCubeFaceMinMax(min, max);
 	brushes.push_back(ConvertFaceToBrush(faces));
@@ -445,11 +456,8 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	// ramp, doing it as a hack
 	std::cout << "ramp" << std::endl;
 	entity = &world->entities[world->numEntities++];
-	pos = glm::vec3(50, 0, 0);
-	dim = glm::vec3(100, 1, 100);
-
 	min = glm::vec3(-100, -50, -400);
-	max = glm::vec3(0, 1, -200);
+	max = glm::vec3(0, 0, -200);
 
 	faces = CreateRampMinMax(min, max, POS_Z);
 	brushes.push_back(ConvertFaceToBrush(faces));
@@ -459,11 +467,8 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	// walls for the ramp
 	std::cout << "walls for ramp" << std::endl;
 	entity = &world->entities[world->numEntities++];
-	pos = glm::vec3(50, 0, 0);
-	dim = glm::vec3(100, 1, 100);
-
 	min = glm::vec3(0, -50, -400);
-	max = glm::vec3(1, 1, -200);
+	max = glm::vec3(1, 0, -200);
 
 	faces = CreateCubeFaceMinMax(min, max);
 	brushes.push_back(ConvertFaceToBrush(faces));
@@ -473,8 +478,6 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	// wall 3
 	std::cout << "wall 3" << std::endl;
 	entity = &world->entities[world->numEntities++];
-	pos = glm::vec3(50, 0, 0);
-	dim = glm::vec3(100, 1, 100);
 
 	min = glm::vec3(0, -50, -401);
 	max = glm::vec3(200, 0, -400);
@@ -487,8 +490,6 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	// plane 4
 	std::cout << "plane 4" << std::endl;
 	entity = &world->entities[world->numEntities++];
-	pos = glm::vec3(50, 0, 0);
-	dim = glm::vec3(100, 1, 100);
 
 	min = glm::vec3(-100, -51, -600);
 	max = glm::vec3(200, -50, -400);
@@ -558,7 +559,7 @@ void CreateAreaA(World* world, std::vector<Brush>& brushes)
 	faces = CreateCubeFaceMinMax(min, max);
 	brushes.push_back(ConvertFaceToBrush(faces));
 	initEntity(entity, pos, faces);
-	*/
+	
 }
 
 
@@ -729,7 +730,7 @@ void CheckBrush(Brush* brush, glm::vec3 start, glm::vec3 end, TraceResult* resul
 	Plane* clipPlane = NULL;
 
 	glm::vec3 offsets;
-
+//	std::cout << ">>>>>>> CheckBrush" << std::endl;
 	for (int i = 0; i < brush->polygons.size(); i++)
 	{
 		BspPolygon polygon = brush->polygons[i];
@@ -738,8 +739,12 @@ void CheckBrush(Brush* brush, glm::vec3 start, glm::vec3 end, TraceResult* resul
 		float startToPlaneDist = 0;
 		float endToPlaneDist = 0;
 
-		// std::cout << "plane normal " << plane.normal << std::endl;
-
+		//std::cout << "plane normal " << plane.normal << " dist " << plane.distance << std::endl;
+		if (plane.normal.x == 0 && plane.normal.y == 0 && plane.normal.z == -1)
+		{
+	//		std::cout << "plane dist " << plane.distance << std::endl;
+		}
+		
 		for (int j = 0; j < 3; j++)
 		{
 			if (plane.normal[j] < 0)
@@ -876,6 +881,11 @@ void CheckBrush(Brush* brush, glm::vec3 start, glm::vec3 end, TraceResult* resul
 
 void TraceToLeafNode(BSPNode* node, glm::vec3 start, glm::vec3 end, TraceResult* result, TraceSetupInfo* setupInfo)
 {
+	if (node->brushes.size() == 0)
+	{
+		return;
+	}
+
 	if (node->IsLeafNode())
 	{
 		for (int i = 0; i < node->brushes.size(); i++)
@@ -889,16 +899,27 @@ void TraceToLeafNode(BSPNode* node, glm::vec3 start, glm::vec3 end, TraceResult*
 }
 
 
-void RecursiveHullCheck(BSPNode* node, float startFraction, float endFraction, 
-						glm::vec3 start, glm::vec3 end, 
-						glm::vec3 traceStart, glm::vec3 traceEnd, 
-						TraceResult* result, TraceSetupInfo* setupInfo)
+
+
+
+void RecursiveHullCheck(BSPNode* node, float startFraction, float endFraction,
+	glm::vec3 start, glm::vec3 end,
+	glm::vec3 traceStart, glm::vec3 traceEnd,
+	TraceResult* result, TraceSetupInfo* setupInfo, bool print = false)
 {
+
+
+	if (print)
+	{
+		std::cout << "visiting node " << node->id << std::endl;
+	}
+
 	// already hit something nearer
 	if (result->timeFraction <= startFraction)
 	{
 		return;
 	}
+
 //	std::cout << "visiting node " << node->id << std::endl;
 //	std::cout << "startFraction " << startFraction << ", endFraction " << endFraction << std::endl;
 
@@ -917,7 +938,9 @@ void RecursiveHullCheck(BSPNode* node, float startFraction, float endFraction,
 		// optimize this
 		startDist = glm::dot(start, plane.normal) - plane.distance;
 		endDist = glm::dot(end, plane.normal) - plane.distance;
-		offset = glm::dot(plane.normal, setupInfo->traceExtends);
+		offset = fabs(setupInfo->traceExtends[0] * plane.normal[0]) +
+			fabs(setupInfo->traceExtends[1] * plane.normal[1]) +
+			fabs(setupInfo->traceExtends[2] * plane.normal[2]);
 	}
 	else
 	{
@@ -939,16 +962,21 @@ void RecursiveHullCheck(BSPNode* node, float startFraction, float endFraction,
 		}
 	}
 
+	if (print && node->id == 7)
+	{
+		std::cout << "visiting node " << node->id << std::endl;
+	}
+
 	if (startDist >= offset && endDist >= offset)
 	{
 		RecursiveHullCheck(node->children[0], startFraction, endFraction, start, end, 
-			traceStart, traceEnd, result, setupInfo);
+			traceStart, traceEnd, result, setupInfo, print);
 		return;
 	}
 	if (startDist < -offset && endDist < -offset)
 	{
 		RecursiveHullCheck(node->children[1], startFraction, endFraction, start, end, 
-			traceStart, traceEnd, result, setupInfo);
+			traceStart, traceEnd, result, setupInfo, print);
 		return;
 	}
 
@@ -1017,7 +1045,7 @@ void RecursiveHullCheck(BSPNode* node, float startFraction, float endFraction,
 
 	RecursiveHullCheck(node->children[side], startFraction, middleFraction, 
 												start, middlePoint, traceStart, traceEnd, 
-												result, setupInfo);
+												result, setupInfo, print);
 
 	// examine [middle	end]
 	if (fraction2 < 0) { fraction2 = 0; }
@@ -1028,16 +1056,20 @@ void RecursiveHullCheck(BSPNode* node, float startFraction, float endFraction,
 
 	RecursiveHullCheck(node->children[!side], middleFraction, endFraction, 
 												middlePoint, end, traceStart, 
-												traceEnd, result, setupInfo);
+												traceEnd, result, setupInfo, print);
 }
 
 
 
 
 // Cloning cmodel.c
-TraceResult BoxTrace(glm::vec3 start, glm::vec3 end, glm::vec3 mins, glm::vec3 maxs, BSPNode* tree)
+TraceResult BoxTrace(glm::vec3 start, glm::vec3 end, glm::vec3 mins, glm::vec3 maxs, BSPNode* tree, bool print = false)
 {
 	TraceResult result = {};
+	result.outputStartsOut = true;
+	result.outputAllSolid = false;
+	result.plane = NULL_PLANE;
+
 	TraceSetupInfo setup = {};
 
 	result.timeFraction = 1;
@@ -1065,7 +1097,7 @@ TraceResult BoxTrace(glm::vec3 start, glm::vec3 end, glm::vec3 mins, glm::vec3 m
 		setup.traceExtends[2] = -mins[2] > maxs[2] ? -mins[2] : maxs[2];
 	}
 
-	RecursiveHullCheck(tree, 0, 1, start, end, start, end, &result, &setup);
+	RecursiveHullCheck(tree, 0, 1, start, end, start, end, &result, &setup, print);
 
 	if (result.timeFraction == 1)
 	{
@@ -1106,7 +1138,8 @@ void initWorld(World* world)
 	}
 	*/
 
-
+	NULL_PLANE = Plane();
+	NULL_PLANE.normal = glm::vec3(0);
 
 	std::vector<Brush> brushes;
 
@@ -1128,9 +1161,11 @@ void initWorld(World* world)
 	PrintBSPTree(world->tree, 0);
 
 
+
+
 	world->startPlayerEntityId = world->numEntities;
 	Entity* entity = &world->entities[world->numEntities++];
-	glm::vec3 pos = glm::vec3(-50, 11, -50);
+	glm::vec3 pos = glm::vec3(-50, 11, -12);
 //	glm::vec3 pos = glm::vec3(-50, 1, -50);
 	initPlayerEntity(entity, pos);
 }

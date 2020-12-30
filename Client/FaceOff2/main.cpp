@@ -18,10 +18,11 @@
 
 #include "sdl_handmade.h"
 
-bool debugMode;
+
 bool is_game_running;
 
 
+DebugModeState debugModeState;
 
 static DebugTable globalDebugTable_;
 DebugTable* globalDebugTable = &globalDebugTable_;
@@ -262,7 +263,7 @@ void SDLProcessPendingEvents(GameInputState* game_input_state)
 			case SDL_KEYDOWN:
 			{
 				SDL_Keycode keyCode = event.key.keysym.sym;
-				if (keyCode == SDLK_z)
+				if (keyCode == SDLK_z || keyCode == SDLK_x)
 				{
 					break;
 				}
@@ -319,10 +320,14 @@ void SDLProcessPendingEvents(GameInputState* game_input_state)
 					{
 						SDLProcessKeyboardEvent(&game_input_state->moveDown2, isDown);
 					}
+					else if (keyCode == SDLK_x)
+					{
+						debugModeState.cameraDebugMode = !debugModeState.cameraDebugMode;
+					}
 					else if (keyCode == SDLK_z)
 					{
-						debugMode = !debugMode;
-						if (debugMode)
+						debugModeState.mouseDebugMode = !debugModeState.mouseDebugMode;
+						if (debugModeState.mouseDebugMode)
 						{
 							SDL_ShowCursor(SDL_ENABLE);
 						}
@@ -507,6 +512,8 @@ int main(int argc, char *argv[])
 
 		uint64_t lastCounter = SDLGetWallClock();
 
+		debugModeState = {};
+		debugModeState.cameraDebugMode = true;
 
 		GameMemory gameMemory = {};
 		gameMemory.permenentStorageSize = Megabytes(256);
@@ -575,7 +582,7 @@ int main(int argc, char *argv[])
 					MouseState & SDLButtonID[ButtonIndex]);
 			}
 			*/
-			if (!debugMode)
+			if (!debugModeState.mouseDebugMode)
 			{
 				SDL_WarpMouseInWindow(window, windowDimensions.x / 2, windowDimensions.y / 2);				
 			}
@@ -602,7 +609,7 @@ int main(int argc, char *argv[])
 			// gameCode.updateAndRenderFunction(&gameMemory, newInput, &gameRenderCommands);
 			//	if (UpdateAndRender != nullptr)
 			{
-				GameUpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, debugMode);
+				GameUpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, &debugModeState);
 			}
 
 
@@ -616,7 +623,7 @@ int main(int argc, char *argv[])
 
 		//	if (Game.DEBUGFrameEnd)
 			{
-				DebugSystemUpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, debugMode);
+				DebugSystemUpdateAndRender(&gameMemory, newInput, &gameRenderCommands, windowDimensions, &debugModeState);
 			}
 
 			BEGIN_BLOCK("Frame Display");
